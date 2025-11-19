@@ -1,3 +1,4 @@
+
 import React, { forwardRef } from 'react';
 import { Voucher } from '../types';
 import { formatDate } from '../services/util';
@@ -13,10 +14,10 @@ const VoucherCard = forwardRef<HTMLDivElement, VoucherCardProps>(({ voucher }, r
         <div className="flex justify-between items-start">
           <div>
             <span className="text-2xl font-bold">DMC Voucher</span>
-            <p className="text-sm text-orange-200">Exclusive Promotional Voucher</p>
+            <p className="text-sm text-orange-200">Voucher Promo Eksklusif</p>
           </div>
           <div className="text-right">
-             <div className="text-xs uppercase tracking-widest text-orange-200">Voucher Code</div>
+             <div className="text-xs uppercase tracking-widest text-orange-200">Kode Voucher</div>
              <div className="text-2xl font-mono font-bold tracking-wider">{voucher.voucherCode}</div>
           </div>
         </div>
@@ -26,10 +27,10 @@ const VoucherCard = forwardRef<HTMLDivElement, VoucherCardProps>(({ voucher }, r
         <div className="space-y-3 text-sm">
             <div>
                 <p className="text-xs uppercase text-orange-200">Nama</p>
-                <p className="font-semibold text-lg">{voucher.fullName}</p>
+                <p className="font-semibold text-lg">{voucher.fullName || '-'}</p>
             </div>
             <div>
-                <p className="text-xs uppercase text-orange-200">WhatsApp Number</p>
+                <p className="text-xs uppercase text-orange-200">Nomor WhatsApp</p>
                 <p className="font-semibold">{voucher.whatsappNumber}</p>
             </div>
             <div className="flex justify-between">
@@ -38,14 +39,14 @@ const VoucherCard = forwardRef<HTMLDivElement, VoucherCardProps>(({ voucher }, r
                     <p className="font-semibold">{voucher.outlet}</p>
                 </div>
                 <div>
-                    <p className="text-xs uppercase text-orange-200">Claim Date</p>
+                    <p className="text-xs uppercase text-orange-200">Tanggal Klaim</p>
                     <p className="font-semibold text-right">{formatDate(voucher.claimDate)}</p>
                 </div>
             </div>
         </div>
       </div>
        <div className="bg-orange-800 bg-opacity-50 rounded-b-xl px-6 py-2 text-center text-xs">
-          <p>Present this voucher at the cashier to redeem. Valid for one-time use only.</p>
+          <p>Tunjukkan voucher ini ke kasir untuk ditukarkan. Berlaku untuk satu kali penggunaan.</p>
        </div>
     </div>
   );

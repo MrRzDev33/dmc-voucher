@@ -1,3 +1,4 @@
+
 import { Voucher } from '../types';
 
 export const generateVoucherCode = (): string => {
@@ -13,34 +14,36 @@ export const getTodayDateString = (): string => {
 
 export const formatDate = (isoString: string): string => {
     try {
-        return new Date(isoString).toLocaleDateString('en-GB', {
+        return new Date(isoString).toLocaleDateString('id-ID', {
             day: '2-digit',
             month: 'long',
             year: 'numeric'
         });
     } catch (error) {
-        return "Invalid Date";
+        return "Tanggal Tidak Valid";
     }
 }
 
 export const exportToCSV = (data: Voucher[], filename: string) => {
   const headers = [
-    'ID', 'Full Name', 'Birth Year', 'WhatsApp Number', 'Outlet', 'Voucher Code', 
-    'Claim Date', 'Is Redeemed', 'Redeemed Date', 'Type', 'Notes'
+    'ID', 'Nama Lengkap', 'Jenis Kelamin', 'Tahun Lahir', 'No WhatsApp', 'Outlet Asal', 'Kode Voucher', 
+    'Tanggal Klaim', 'Sudah Ditebus', 'Tanggal Tebus', 'Outlet Penukaran', 'Tipe', 'Catatan'
   ];
   const csvRows = [headers.join(',')];
 
   data.forEach(row => {
     const values = [
       row.id,
-      `"${row.fullName.replace(/"/g, '""')}"`,
-      row.birthYear,
+      `"${(row.fullName || '-').replace(/"/g, '""')}"`,
+      row.gender || '-',
+      row.birthYear || '-',
       row.whatsappNumber,
-      row.outlet,
+      `"${row.outlet.replace(/"/g, '""')}"`,
       row.voucherCode,
       formatDate(row.claimDate),
-      row.isRedeemed,
-      row.redeemedDate ? formatDate(row.redeemedDate) : 'N/A',
+      row.isRedeemed ? 'Ya' : 'Tidak',
+      row.redeemedDate ? formatDate(row.redeemedDate) : '-',
+      `"${(row.redeemedOutlet || '-').replace(/"/g, '""')}"`,
       row.type,
       `"${row.notes?.replace(/"/g, '""') || ''}"`
     ];

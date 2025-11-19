@@ -1,3 +1,4 @@
+
 import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { Search } from './icons/Icons';
 
@@ -16,7 +17,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
   options,
   value,
   onChange,
-  placeholder = 'Select an option',
+  placeholder = 'Pilih opsi',
 }) => {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState(value);
@@ -82,7 +83,7 @@ const SearchableSelect: React.FC<SearchableSelectProps> = ({
               ))
             ) : (
               <li className="select-none relative py-2 px-3 text-gray-500">
-                No options found
+                Pilihan tidak ditemukan
               </li>
             )}
           </ul>

@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { useVouchers } from '../../context/VoucherContext';
 import { useAuth } from '../../context/AuthContext';
@@ -5,6 +6,7 @@ import { Outlet } from '../../types';
 import { OUTLETS } from '../../constants';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
+import Select from '../../components/Select';
 import SearchableSelect from '../../components/SearchableSelect';
 import TabButton from '../../components/TabButton';
 import { Loader2, Search, CheckCircle, XCircle, Smartphone, Ticket } from '../../components/icons/Icons';
@@ -39,7 +41,9 @@ const KasirView: React.FC = () => {
 };
 
 const RedeemDigitalForm: React.FC = () => {
+  const { currentUser } = useAuth();
   const [identifier, setIdentifier] = useState('');
+  const [outlet, setOutlet] = useState<Outlet>(currentUser?.outlet || OUTLETS[0]);
   const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const { redeemVoucher } = useVouchers();
@@ -48,17 +52,17 @@ const RedeemDigitalForm: React.FC = () => {
     e.preventDefault();
     setMessage(null);
     if (!identifier) {
-        setMessage({type: 'error', text: "Please enter a voucher code or WhatsApp number."});
+        setMessage({type: 'error', text: "Silakan masukkan kode voucher atau nomor WhatsApp."});
         return;
     }
 
     setIsSubmitting(true);
     try {
-      const redeemed = await redeemVoucher(identifier);
-      setMessage({type: 'success', text: `Voucher ${redeemed.voucherCode} for ${redeemed.whatsappNumber} redeemed successfully!`});
+      const redeemed = await redeemVoucher(identifier, outlet);
+      setMessage({type: 'success', text: `Voucher ${redeemed.voucherCode} atas nama nomor ${redeemed.whatsappNumber} berhasil ditukarkan di ${outlet}!`});
       setIdentifier('');
     } catch (error: any) {
-      setMessage({type: 'error', text: error.message || 'An unexpected error occurred.'});
+      setMessage({type: 'error', text: error.message || 'Terjadi kesalahan yang tidak terduga.'});
     } finally {
       setIsSubmitting(false);
     }
@@ -66,21 +70,29 @@ const RedeemDigitalForm: React.FC = () => {
 
   return (
     <div className="bg-white p-8 rounded-xl shadow-lg">
-      <h2 className="text-2xl font-bold text-gray-800 mb-1">Redeem Digital Voucher</h2>
-      <p className="text-gray-500 mb-6">Enter customer's voucher code or WhatsApp number to mark it as used.</p>
+      <h2 className="text-2xl font-bold text-gray-800 mb-1">Tebus Voucher Digital</h2>
+      <p className="text-gray-500 mb-6">Masukkan kode voucher atau nomor WhatsApp pelanggan untuk menandainya sebagai sudah digunakan.</p>
       
       <form onSubmit={handleSubmit} className="space-y-4">
         <Input
-          label="Voucher Code / WhatsApp Number"
+          label="Kode Voucher / Nomor WhatsApp"
           id="identifier"
           value={identifier}
           onChange={(e) => setIdentifier(e.target.value)}
-          placeholder="Enter code or phone number"
+          placeholder="Masukkan kode atau nomor HP"
           required
           Icon={Search}
         />
+        <SearchableSelect
+            label="Klaim Outlet"
+            id="redeem-outlet"
+            options={OUTLETS}
+            value={outlet}
+            onChange={(value) => setOutlet(value)}
+            placeholder="Pilih outlet penukaran..."
+        />
         <Button type="submit" disabled={isSubmitting} className="w-full">
-          {isSubmitting ? <><Loader2 className="animate-spin mr-2"/> Processing...</> : 'Redeem Voucher'}
+          {isSubmitting ? <><Loader2 className="animate-spin mr-2"/> Memproses...</> : 'Tebus Voucher'}
         </Button>
       </form>
       {message && <StatusMessage type={message.type} text={message.text} />}
@@ -95,39 +107,40 @@ const InputPhysicalForm: React.FC = () => {
     const [isSubmitting, setIsSubmitting] = useState(false);
     const [message, setMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
-    const [fullName, setFullName] = useState('');
-    const [birthYear, setBirthYear] = useState('');
+    // New fields as requested
+    const [gender, setGender] = useState<'Pria' | 'Wanita'>('Pria');
     const [whatsappNumber, setWhatsappNumber] = useState('');
-    const [voucherCode, setVoucherCode] = useState('');
-    const [notes, setNotes] = useState('');
-    
-    // Default to cashier's outlet but allow changing it
     const [outlet, setOutlet] = useState<Outlet>(currentUser?.outlet || OUTLETS[0]);
-
+    const [voucherCode, setVoucherCode] = useState('');
+    
     const resetForm = () => {
-        setFullName('');
-        setBirthYear('');
+        setGender('Pria');
         setWhatsappNumber('');
         setVoucherCode('');
-        setNotes('');
-        setOutlet(currentUser?.outlet || OUTLETS[0]); // Reset to default
+        setOutlet(currentUser?.outlet || OUTLETS[0]);
     }
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault();
         setMessage(null);
-        if (!fullName || !birthYear || !whatsappNumber || !voucherCode) {
-            setMessage({ type: 'error', text: "Please fill all required fields." });
+        if (!whatsappNumber || !voucherCode) {
+            setMessage({ type: 'error', text: "Mohon isi semua kolom yang wajib diisi." });
             return;
         }
 
         setIsSubmitting(true);
         try {
-            const recorded = await recordPhysicalVoucher({ fullName, birthYear, whatsappNumber, voucherCode, outlet, notes });
-            setMessage({ type: 'success', text: `Physical voucher ${recorded.voucherCode} recorded for ${recorded.fullName}!` });
+            // Record physical voucher with Gender, WhatsApp, and Outlet
+            const recorded = await recordPhysicalVoucher({ 
+                gender, 
+                whatsappNumber, 
+                voucherCode, 
+                outlet 
+            });
+            setMessage({ type: 'success', text: `Voucher Fisik ${recorded.voucherCode} berhasil dicatat!` });
             resetForm();
         } catch (error: any) {
-            setMessage({ type: 'error', text: error.message || 'An error occurred.' });
+            setMessage({ type: 'error', text: error.message || 'Terjadi kesalahan.' });
         } finally {
             setIsSubmitting(false);
         }
@@ -135,31 +148,53 @@ const InputPhysicalForm: React.FC = () => {
 
     return (
         <div className="bg-white p-8 rounded-xl shadow-lg">
-            <h2 className="text-2xl font-bold text-gray-800 mb-1">Input Physical Voucher Data</h2>
-            <p className="text-gray-500 mb-6">Enter customer details and the code from the physical voucher.</p>
+            <h2 className="text-2xl font-bold text-gray-800 mb-1">Input Voucher Fisik</h2>
+            <p className="text-gray-500 mb-6">Masukkan data pelanggan untuk klaim voucher fisik.</p>
 
             <form onSubmit={handleSubmit} className="space-y-4">
-                <Input label="Nama" id="phys-fullName" value={fullName} onChange={e => setFullName(e.target.value)} required />
-                <Input label="Tahun Lahir" id="phys-birthYear" value={birthYear} onChange={e => setBirthYear(e.target.value)} type="number" required />
-                <Input label="No. WhatsApp" id="phys-whatsapp" value={whatsappNumber} onChange={e => setWhatsappNumber(e.target.value)} type="tel" required />
-                <Input label="Kode Unik Voucher Fisik" id="phys-code" value={voucherCode} onChange={e => setVoucherCode(e.target.value)} required />
+                <Select 
+                    label="Jenis Kelamin" 
+                    id="phys-gender" 
+                    value={gender} 
+                    onChange={(e) => setGender(e.target.value as 'Pria' | 'Wanita')}
+                >
+                    <option value="Pria">Pria</option>
+                    <option value="Wanita">Wanita</option>
+                </Select>
+
+                <Input 
+                    label="No HP" 
+                    id="phys-whatsapp" 
+                    value={whatsappNumber} 
+                    onChange={e => setWhatsappNumber(e.target.value)} 
+                    type="tel" 
+                    placeholder="Contoh: 08123456789"
+                    required 
+                />
+                
                 <SearchableSelect
-                  label="Outlet Klaim"
+                  label="Klaim Outlet"
                   id="phys-outlet"
                   options={OUTLETS}
                   value={outlet}
                   onChange={(value) => setOutlet(value)}
                   placeholder="Cari atau pilih outlet..."
                 />
-                <div>
-                    <label htmlFor="phys-notes" className="block text-sm font-medium text-gray-700 mb-1">Catatan (Opsional)</label>
-                    <textarea id="phys-notes" value={notes} onChange={e => setNotes(e.target.value)} rows={3}
-                        className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm placeholder-gray-400 focus:outline-none focus:ring-primary focus:border-primary sm:text-sm bg-white text-gray-900"
-                        placeholder="e.g., Customer redeemed at wrong outlet."
-                    ></textarea>
+
+                <div className="border-t border-gray-200 pt-4 mt-2">
+                    <p className="text-xs text-gray-500 mb-2 uppercase tracking-wide">Verifikasi Kode</p>
+                    <Input 
+                        label="Kode Unik Voucher Fisik" 
+                        id="phys-code" 
+                        value={voucherCode} 
+                        onChange={e => setVoucherCode(e.target.value)} 
+                        placeholder="Masukkan kode yang tertera di fisik"
+                        required 
+                    />
                 </div>
+
                 <Button type="submit" disabled={isSubmitting} className="w-full">
-                    {isSubmitting ? <><Loader2 className="animate-spin mr-2"/> Saving...</> : 'Save Record'}
+                    {isSubmitting ? <><Loader2 className="animate-spin mr-2"/> Menyimpan...</> : 'Simpan Data'}
                 </Button>
             </form>
              {message && <StatusMessage type={message.type} text={message.text} />}

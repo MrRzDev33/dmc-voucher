@@ -21,7 +21,7 @@ const AdminPage: React.FC = () => {
     setLoading(true);
     const user = await login(username, password);
     if (!user) {
-      setError('Invalid username or password.');
+      setError('Username atau password salah.');
     }
     setLoading(false);
   };
@@ -33,7 +33,7 @@ const AdminPage: React.FC = () => {
           <div>
             <h2 className="text-3xl font-bold text-center text-primary">Admin Login</h2>
             <p className="mt-2 text-center text-sm text-gray-600">
-                Access your dashboard
+                Masuk ke dasboard
             </p>
           </div>
           <form className="mt-8 space-y-6" onSubmit={handleLogin}>
@@ -58,7 +58,7 @@ const AdminPage: React.FC = () => {
             <div>
               <Button type="submit" disabled={loading} className="w-full">
                 {loading ? <Loader2 className="animate-spin" /> : <LogIn className="mr-2" />}
-                Sign In
+                Masuk
               </Button>
             </div>
           </form>
@@ -71,10 +71,10 @@ const AdminPage: React.FC = () => {
     <div className="container mx-auto px-4 py-8 sm:px-6 lg:px-8">
       <div className="flex justify-between items-center mb-6">
         <div>
-            <h1 className="text-2xl font-bold text-gray-800">Welcome, {currentUser.username}!</h1>
-            <p className="text-gray-500">You are logged in as {currentUser.role === Role.PUSAT ? 'Central Admin' : `Cashier (${currentUser.outlet})`}</p>
+            <h1 className="text-2xl font-bold text-gray-800">Selamat Datang, {currentUser.username}!</h1>
+            <p className="text-gray-500">Anda masuk sebagai {currentUser.role === Role.PUSAT ? 'Admin Pusat' : `Kasir (${currentUser.outlet})`}</p>
         </div>
-        <Button onClick={logout} variant="secondary">Logout</Button>
+        <Button onClick={logout} variant="secondary">Keluar</Button>
       </div>
 
       {currentUser.role === Role.PUSAT ? <Dashboard /> : <KasirView />}

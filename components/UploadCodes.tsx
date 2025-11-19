@@ -1,3 +1,4 @@
+
 import React, { useState } from 'react';
 import { VoucherType } from '../types';
 import Button from './Button';
@@ -22,7 +23,7 @@ const UploadCodes: React.FC<UploadCodesProps> = ({ voucherType, onUpload }) => {
 
   const handleUpload = () => {
     if (!file) {
-      setError('Please select a file first.');
+      setError('Silakan pilih file terlebih dahulu.');
       return;
     }
 
@@ -36,18 +37,18 @@ const UploadCodes: React.FC<UploadCodesProps> = ({ voucherType, onUpload }) => {
         // Split by new line and filter out empty lines
         const codes = text.split(/\r?\n/).filter(line => line.trim() !== '');
         if (codes.length === 0) {
-            throw new Error('File is empty or contains no valid codes.');
+            throw new Error('File kosong atau tidak berisi kode yang valid.');
         }
         onUpload(codes, voucherType);
         setFile(null); // Reset file input
       } catch (err: any) {
-          setError(err.message || 'Failed to read the file.');
+          setError(err.message || 'Gagal membaca file.');
       } finally {
           setIsLoading(false);
       }
     };
     reader.onerror = () => {
-        setError('Error reading file.');
+        setError('Gagal membaca file.');
         setIsLoading(false);
     }
     reader.readAsText(file);
@@ -55,9 +56,9 @@ const UploadCodes: React.FC<UploadCodesProps> = ({ voucherType, onUpload }) => {
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-lg">
-      <h3 className="text-lg font-semibold mb-2">Upload {voucherType} Voucher Codes</h3>
+      <h3 className="text-lg font-semibold mb-2">Unggah Kode Voucher {voucherType === 'DIGITAL' ? 'Digital' : 'Fisik'}</h3>
       <p className="text-sm text-gray-600 mb-4">
-        Upload a <strong>.txt</strong> file with one unique voucher code per line. This will overwrite any existing codes for this voucher type.
+        Unggah file <strong>.txt</strong> dengan satu kode unik per baris. Ini akan menimpa kode yang ada untuk tipe voucher ini.
       </p>
       <div className="flex items-center gap-4">
         <input
@@ -73,7 +74,7 @@ const UploadCodes: React.FC<UploadCodesProps> = ({ voucherType, onUpload }) => {
             hover:file:bg-orange-100"
         />
         <Button onClick={handleUpload} disabled={!file || isLoading}>
-          {isLoading ? <Loader2 className="animate-spin" /> : 'Upload'}
+          {isLoading ? <Loader2 className="animate-spin" /> : 'Unggah'}
         </Button>
       </div>
        {error && <p className="text-red-500 text-sm mt-2">{error}</p>}

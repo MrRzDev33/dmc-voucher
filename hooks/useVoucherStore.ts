@@ -1,3 +1,4 @@
+
 import { useState, useEffect, useCallback } from 'react';
 import { Voucher, Outlet, Stats, VoucherType } from '../types';
 import { getTodayDateString } from '../services/util';
@@ -12,9 +13,9 @@ export interface UseVoucherStoreReturn {
   loading: boolean;
   error: string | null;
   stats: Stats;
-  claimVoucher: (data: Omit<Voucher, 'id' | 'voucherCode' | 'claimDate' | 'isRedeemed' | 'type'>) => Promise<Voucher>;
-  redeemVoucher: (voucherIdentifier: string) => Promise<Voucher>;
-  recordPhysicalVoucher: (data: Omit<Voucher, 'id' | 'claimDate' | 'isRedeemed' | 'type' >) => Promise<Voucher>;
+  claimVoucher: (data: Omit<Voucher, 'id' | 'voucherCode' | 'claimDate' | 'isRedeemed' | 'type' | 'redeemedDate' | 'redeemedOutlet'>) => Promise<Voucher>;
+  redeemVoucher: (voucherIdentifier: string, redeemedOutlet: Outlet) => Promise<Voucher>;
+  recordPhysicalVoucher: (data: Omit<Voucher, 'id' | 'claimDate' | 'isRedeemed' | 'type' | 'redeemedDate' | 'redeemedOutlet'>) => Promise<Voucher>;
   loadCodes: (codes: string[], type: VoucherType) => void;
   getVouchers: () => Voucher[];
   resetData: () => void;
@@ -54,9 +55,6 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
       const loadedCodes = storedCodes ? JSON.parse(storedCodes) : initialCodePool;
 
       // Re-populate used status from vouchers
-      // FIX: Add explicit generic types to the Map constructor. When loading from localStorage,
-      // `loadedCodes` is of type `any`, causing `new Map()` to be inferred as `Map<unknown, unknown>`.
-      // Specifying `<string, boolean>` ensures the correct type and resolves the assignment error.
       const newCodePool = {
           DIGITAL: new Map<string, boolean>(loadedCodes.DIGITAL || []),
           PHYSICAL: new Map<string, boolean>(loadedCodes.PHYSICAL || [])
@@ -69,7 +67,7 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
       setCodePool(newCodePool);
 
     } catch (e) {
-      setError('Failed to load data from storage.');
+      setError('Gagal memuat data dari penyimpanan.');
       setVouchers(MOCK_VOUCHERS); // Fallback
     } finally {
       setLoading(false);
@@ -86,7 +84,7 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
         }));
       } catch (e) {
         console.error("Failed to save data to local storage", e);
-        setError("Could not save changes. Your storage might be full.");
+        setError("Tidak dapat menyimpan perubahan. Penyimpanan Anda mungkin penuh.");
       }
   }, []);
 
@@ -144,29 +142,34 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
 
     setCodePool(newCodePool);
     updateLocalStorage(vouchers, newCodePool);
-    alert(`${codes.length} codes for ${type} vouchers loaded successfully!`);
+    alert(`${codes.length} kode untuk voucher ${type === 'DIGITAL' ? 'Digital' : 'Fisik'} berhasil dimuat!`);
   }
 
-  const claimVoucher = async (data: Omit<Voucher, 'id' | 'voucherCode' | 'claimDate' | 'isRedeemed' | 'type'>): Promise<Voucher> => {
+  const claimVoucher = async (data: Omit<Voucher, 'id' | 'voucherCode' | 'claimDate' | 'isRedeemed' | 'type' | 'redeemedDate' | 'redeemedOutlet'>): Promise<Voucher> => {
     setError(null);
 
     return new Promise((resolve, reject) => {
       setTimeout(() => {
         if (vouchers.some(v => v.whatsappNumber === data.whatsappNumber)) {
-            const err = 'This WhatsApp number has already claimed a voucher.';
+            const err = 'Nomor WhatsApp ini sudah pernah mengklaim voucher.';
             setError(err);
             return reject(new Error(err));
         }
 
-        const availableCode = Array.from(codePool.DIGITAL.entries()).find(([_, isUsed]) => !isUsed);
-        if (!availableCode) {
-            const err = 'Sorry, all digital vouchers have been claimed.';
+        let voucherCode: string | undefined;
+        for (const [code, isUsed] of codePool.DIGITAL.entries()) {
+            if (!isUsed) {
+                voucherCode = code;
+                break;
+            }
+        }
+
+        if (!voucherCode) {
+            const err = 'Maaf, semua voucher digital sudah habis diklaim.';
             setError(err);
             return reject(new Error(err));
         }
         
-        const [voucherCode] = availableCode;
-
         const newVoucher: Voucher = {
           ...data,
           id: crypto.randomUUID(),
@@ -189,26 +192,31 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
     });
   };
 
-  const redeemVoucher = async (voucherIdentifier: string): Promise<Voucher> => {
+  const redeemVoucher = async (voucherIdentifier: string, redeemedOutlet: Outlet): Promise<Voucher> => {
     setError(null);
     return new Promise((resolve, reject) => {
         setTimeout(() => {
             const voucherIndex = vouchers.findIndex(v => v.type === 'DIGITAL' && (v.voucherCode.toLowerCase() === voucherIdentifier.toLowerCase() || v.whatsappNumber === voucherIdentifier));
             
             if (voucherIndex === -1) {
-                const err = 'Digital voucher not found.';
+                const err = 'Voucher digital tidak ditemukan.';
                 setError(err);
                 return reject(new Error(err));
             }
 
             const voucher = vouchers[voucherIndex];
             if (voucher.isRedeemed) {
-                const err = 'This voucher has already been redeemed.';
+                const err = 'Voucher ini sudah pernah ditukarkan sebelumnya.';
                 setError(err);
                 return reject(new Error(err));
             }
 
-            const updatedVoucher = { ...voucher, isRedeemed: true, redeemedDate: new Date().toISOString() };
+            const updatedVoucher: Voucher = { 
+                ...voucher, 
+                isRedeemed: true, 
+                redeemedDate: new Date().toISOString(),
+                redeemedOutlet: redeemedOutlet 
+            };
             const updatedVouchers = [...vouchers];
             updatedVouchers[voucherIndex] = updatedVoucher;
 
@@ -219,19 +227,19 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
     });
   };
   
-  const recordPhysicalVoucher = async (data: Omit<Voucher, 'id' | 'claimDate' | 'isRedeemed' | 'type' >): Promise<Voucher> => {
+  const recordPhysicalVoucher = async (data: Omit<Voucher, 'id' | 'claimDate' | 'isRedeemed' | 'type' | 'redeemedDate' | 'redeemedOutlet'>): Promise<Voucher> => {
       setError(null);
       return new Promise((resolve, reject) => {
           setTimeout(() => {
               const code = data.voucherCode.trim();
               if (!codePool.PHYSICAL.has(code)) {
-                  const err = 'Invalid physical voucher code.';
+                  const err = 'Kode voucher fisik tidak valid (tidak ditemukan di database).';
                   setError(err);
                   return reject(new Error(err));
               }
 
               if (codePool.PHYSICAL.get(code) === true) {
-                  const err = 'This physical voucher has already been recorded.';
+                  const err = 'Voucher fisik ini sudah pernah tercatat.';
                   setError(err);
                   return reject(new Error(err));
               }
@@ -260,7 +268,7 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
   }
 
   const resetData = () => {
-    if (window.confirm('Are you sure you want to permanently delete all voucher data? This includes all claims, redemptions, and uploaded codes. This action cannot be undone.')) {
+    if (window.confirm('Apakah Anda yakin ingin menghapus semua data voucher secara permanen? Ini mencakup semua klaim, penukaran, dan kode yang diunggah. Tindakan ini tidak dapat dibatalkan.')) {
         try {
             // Clear storage for the next session
             localStorage.setItem('vouchers', '[]');
@@ -273,11 +281,11 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
             setVouchers([]);
             setCodePool(initialCodePool);
 
-            alert('All application data has been reset successfully.');
+            alert('Semua data aplikasi berhasil diatur ulang.');
             // No reload needed, state update will refresh the view.
         } catch (e) {
             console.error("Failed to reset data in local storage", e);
-            alert("An error occurred while trying to reset the data.");
+            alert("Terjadi kesalahan saat mencoba mengatur ulang data.");
         }
     }
   };

@@ -54,7 +54,7 @@ const App: React.FC = () => {
                         : 'text-gray-600 hover:bg-gray-100'
                     }`}
                   >
-                    Claim Voucher
+                    Klaim Voucher
                   </button>
                   <button
                     onClick={() => handleNavClick('admin')}
@@ -64,7 +64,7 @@ const App: React.FC = () => {
                         : 'text-gray-600 hover:bg-gray-100'
                     }`}
                   >
-                    Admin Panel
+                    Panel Admin
                   </button>
                 </div>
 
@@ -86,7 +86,7 @@ const App: React.FC = () => {
                           currentPage === 'claim' ? 'bg-orange-100 text-primary' : 'text-gray-700'
                         } hover:bg-gray-100`}
                       >
-                        Claim Voucher
+                        Klaim Voucher
                       </button>
                       <button
                         onClick={() => handleNavClick('admin')}
@@ -94,7 +94,7 @@ const App: React.FC = () => {
                            currentPage === 'admin' ? 'bg-orange-100 text-primary' : 'text-gray-700'
                         } hover:bg-gray-100`}
                       >
-                        Admin Panel
+                        Panel Admin
                       </button>
                     </div>
                   )}
@@ -109,7 +109,7 @@ const App: React.FC = () => {
           </main>
           
           <footer className="bg-white mt-12 py-4 text-center text-gray-500 text-sm">
-              <p>&copy; {new Date().getFullYear()} DMC Corporation. All rights reserved.</p>
+              <p>&copy; {new Date().getFullYear()} Donat Madu Indonesia. All rights reserved.</p>
           </footer>
         </div>
       </VoucherProvider>

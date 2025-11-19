@@ -1,3 +1,4 @@
+
 import React, { useState, useRef } from 'react';
 import { useVouchers } from '../context/VoucherContext';
 import { Outlet, Voucher } from '../types';
@@ -29,15 +30,15 @@ const ClaimPage: React.FC = () => {
     e.preventDefault();
     setFormError('');
     if (!fullName || !birthYear || !whatsappNumber) {
-      setFormError('All fields are required.');
+      setFormError('Semua kolom wajib diisi.');
       return;
     }
     if (!/^\d{4}$/.test(birthYear) || parseInt(birthYear, 10) > new Date().getFullYear() || parseInt(birthYear, 10) < 1920) {
-      setFormError('Please enter a valid 4-digit year of birth.');
+      setFormError('Mohon masukkan 4 digit tahun lahir yang valid.');
       return;
     }
     if (!/^\d{10,14}$/.test(whatsappNumber)) {
-        setFormError('Please enter a valid WhatsApp number (10-14 digits).');
+        setFormError('Mohon masukkan nomor WhatsApp yang valid (10-14 digit).');
         return;
     }
 
@@ -68,15 +69,15 @@ const ClaimPage: React.FC = () => {
   return (
     <div className="container mx-auto px-4 py-8 sm:px-6 lg:px-8 max-w-2xl">
       <div className="bg-white p-8 rounded-xl shadow-lg">
-        <h1 className="text-3xl font-bold text-center text-primary mb-2">Claim Your Free Voucher!</h1>
-        <p className="text-center text-gray-600 mb-8">Fill in your details below to receive an exclusive voucher from us.</p>
+        <h1 className="text-3xl font-bold text-center text-primary mb-2">Klaim Voucher 12.12!</h1>
+        <p className="text-center text-gray-600 mb-8">Isi data diri sobat di bawah ini untuk mendapatkan voucher eksklusif dari kami.</p>
         <form onSubmit={handleSubmit} className="space-y-6">
           <Input
-            label="Nama"
+            label="Nama Lengkap"
             id="fullName"
             value={fullName}
             onChange={(e) => setFullName(e.target.value)}
-            placeholder="e.g., Budi Santoso"
+            placeholder="Contoh: Budi Santoso"
             required
           />
           <Input
@@ -84,7 +85,7 @@ const ClaimPage: React.FC = () => {
             id="birthYear"
             value={birthYear}
             onChange={(e) => setBirthYear(e.target.value)}
-            placeholder="e.g., 1995"
+            placeholder="Contoh: 1995"
             type="number"
             required
           />
@@ -94,11 +95,11 @@ const ClaimPage: React.FC = () => {
             type="tel"
             value={whatsappNumber}
             onChange={(e) => setWhatsappNumber(e.target.value)}
-            placeholder="e.g., 081234567890"
+            placeholder="Contoh: 081234567890"
             required
           />
           <SearchableSelect
-            label="Claim di Outlet"
+            label="Klaim di Outlet"
             id="outlet"
             options={OUTLETS}
             value={outlet}
@@ -107,10 +108,10 @@ const ClaimPage: React.FC = () => {
           />
           
           {formError && <p className="text-red-500 text-sm">{formError}</p>}
-          {error && <p className="text-red-500 text-sm">{error.includes("limit") ? 'Sorry, the daily voucher limit has been reached.' : error}</p>}
+          {error && <p className="text-red-500 text-sm">{error.includes("limit") ? 'Maaf, batas klaim harian telah tercapai.' : error}</p>}
           
           <Button type="submit" disabled={isSubmitting} className="w-full">
-            {isSubmitting ? <><Loader2 className="animate-spin mr-2" /> Submitting...</> : 'Claim My Voucher'}
+            {isSubmitting ? <><Loader2 className="animate-spin mr-2" /> Memproses...</> : 'Klaim Voucher Saya'}
           </Button>
         </form>
       </div>
@@ -119,13 +120,13 @@ const ClaimPage: React.FC = () => {
         <Modal
           isOpen={!!generatedVoucher}
           onClose={() => setGeneratedVoucher(null)}
-          title="Voucher Generated Successfully!"
+          title="Voucher Berhasil Dibuat!"
         >
-            <p className="text-center text-gray-600 mb-4">Congratulations! Here is your voucher. Please download and show it at the outlet.</p>
+            <p className="text-center text-gray-600 mb-4">Selamat! Ini adalah voucher Anda. Silakan unduh dan tunjukkan kepada kasir di outlet.</p>
             <VoucherCard ref={voucherRef} voucher={generatedVoucher} />
             <div className="mt-6 flex justify-center">
                 <Button onClick={handleDownload}>
-                    Download Voucher (PNG)
+                    Unduh Voucher (PNG)
                 </Button>
             </div>
         </Modal>
