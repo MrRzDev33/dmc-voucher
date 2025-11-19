@@ -196,10 +196,21 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
     setError(null);
     return new Promise((resolve, reject) => {
         setTimeout(() => {
-            const voucherIndex = vouchers.findIndex(v => v.type === 'DIGITAL' && (v.voucherCode.toLowerCase() === voucherIdentifier.toLowerCase() || v.whatsappNumber === voucherIdentifier));
+            // CLEANUP: Trim whitespace and force lowercase for comparison
+            const cleanIdentifier = voucherIdentifier.trim().toLowerCase();
+
+            const voucherIndex = vouchers.findIndex(v => {
+                if (v.type !== 'DIGITAL') return false;
+
+                const vCode = v.voucherCode.toLowerCase().trim();
+                const vWA = v.whatsappNumber.trim();
+                
+                // Check Code OR WhatsApp (tolerant of casing and spaces)
+                return vCode === cleanIdentifier || vWA === cleanIdentifier || vWA === voucherIdentifier.trim();
+            });
             
             if (voucherIndex === -1) {
-                const err = 'Voucher digital tidak ditemukan.';
+                const err = 'Voucher digital tidak ditemukan. Pastikan Kode Voucher atau Nomor WhatsApp sudah benar.';
                 setError(err);
                 return reject(new Error(err));
             }
