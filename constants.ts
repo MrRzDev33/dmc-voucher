@@ -120,7 +120,7 @@ export const OUTLETS: Outlet[] = [
 'Semarang - DMC Banyumanik Semarang',
 'Semarang - DMC Kedungmundu',
 'Serang - DMC Serang',
-'Solo - DMC Solo Mr Sartono',
+'Surakarta - DMC Solo Mr Sartono',
 'Sragen - DMC Sragen',
 'Subang - DMC Cigadung Subang',
 'Subang - DMC Kalijati',
@@ -152,4 +152,4 @@ export const OUTLETS: Outlet[] = [
 'Yogyakarta - DMC Perintis'
 ];
 
-export const DAILY_CLAIM_LIMIT = 100; // Global limit
+export const DAILY_CLAIM_LIMIT = 300; // Global limit
