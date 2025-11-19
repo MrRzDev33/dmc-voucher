@@ -12,6 +12,7 @@ const AdminPage: React.FC = () => {
   const { currentUser, login, logout } = useAuth();
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -19,7 +20,7 @@ const AdminPage: React.FC = () => {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const user = await login(username, password);
+    const user = await login(username, password, rememberMe);
     if (!user) {
       setError('Username atau password salah.');
     }
@@ -37,21 +38,39 @@ const AdminPage: React.FC = () => {
             </p>
           </div>
           <form className="mt-8 space-y-6" onSubmit={handleLogin}>
-             <Input
-                label="Username"
-                id="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
-                required
-             />
-             <Input
-                label="Password"
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-             />
+             <div className="space-y-4">
+                <Input
+                    label="Username"
+                    id="username"
+                    value={username}
+                    onChange={(e) => setUsername(e.target.value)}
+                    required
+                />
+                <Input
+                    label="Password"
+                    id="password"
+                    type="password"
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                    required
+                />
+             </div>
+
+            <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                    <input
+                        id="remember-me"
+                        name="remember-me"
+                        type="checkbox"
+                        checked={rememberMe}
+                        onChange={(e) => setRememberMe(e.target.checked)}
+                        className="h-4 w-4 text-primary focus:ring-primary border-gray-300 rounded cursor-pointer"
+                    />
+                    <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-900 cursor-pointer">
+                        Ingat saya
+                    </label>
+                </div>
+            </div>
 
             {error && <p className="text-sm text-red-500">{error}</p>}
             

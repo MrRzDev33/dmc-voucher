@@ -121,20 +121,19 @@ const Dashboard: React.FC = () => {
           <table className="w-full text-sm text-left text-gray-500">
             <thead className="text-xs text-gray-700 uppercase bg-gray-50">
               <tr>
-                <th scope="col" className="px-6 py-3">Nama / Info</th>
+                {activeTab === 'DIGITAL' && <th scope="col" className="px-6 py-3">Nama / Info</th>}
                 <th scope="col" className="px-6 py-3">No. WhatsApp</th>
                 {activeTab === 'PHYSICAL' && <th scope="col" className="px-6 py-3">Gender</th>}
                 <th scope="col" className="px-6 py-3">Kode Voucher</th>
                 <th scope="col" className="px-6 py-3">Outlet</th>
                 <th scope="col" className="px-6 py-3">{activeTab === 'DIGITAL' ? 'Tgl Klaim' : 'Tgl Penukaran'}</th>
                 <th scope="col" className="px-6 py-3">Status</th>
-                {activeTab === 'PHYSICAL' && <th scope="col" className="px-6 py-3">Catatan</th>}
               </tr>
             </thead>
             <tbody>
               {paginatedVouchers.map((v: Voucher) => (
                 <tr key={v.id} className="bg-white border-b border-gray-200 hover:bg-gray-50">
-                  <td className="px-6 py-4 font-medium text-gray-800">{v.fullName || '-'}</td>
+                  {activeTab === 'DIGITAL' && <td className="px-6 py-4 font-medium text-gray-800">{v.fullName || '-'}</td>}
                   <td className="px-6 py-4">{v.whatsappNumber}</td>
                   {activeTab === 'PHYSICAL' && <td className="px-6 py-4">{v.gender || '-'}</td>}
                   <td className="px-6 py-4 font-mono">{v.voucherCode}</td>
@@ -145,7 +144,6 @@ const Dashboard: React.FC = () => {
                       {v.isRedeemed ? 'Sudah Ditukar' : 'Belum Ditukar'}
                     </span>
                   </td>
-                  {activeTab === 'PHYSICAL' && <td className="px-6 py-4 text-xs italic">{v.notes}</td>}
                 </tr>
               ))}
             </tbody>
@@ -184,3 +182,4 @@ const Dashboard: React.FC = () => {
 };
 
 export default Dashboard;
+    
