@@ -26,8 +26,8 @@ export const formatDate = (isoString: string): string => {
 
 export const exportToCSV = (data: Voucher[], filename: string) => {
   const headers = [
-    'ID', 'Nama Lengkap', 'Jenis Kelamin', 'Tahun Lahir', 'No WhatsApp', 'Outlet Asal', 'Kode Voucher', 
-    'Tanggal Klaim', 'Sudah Ditebus', 'Tanggal Tebus', 'Outlet Penukaran', 'Tipe', 'Catatan'
+    'ID', 'Nama Lengkap', 'Jenis Kelamin', 'Tahun Lahir', 'No WhatsApp', 'Pengambilan Voucher (Klaim)', 'Kode Voucher', 
+    'Tanggal Klaim', 'Sudah Ditebus', 'Tanggal Tebus', 'Penukaran Voucher (Redeem)', 'Tipe', 'Catatan'
   ];
   const csvRows = [headers.join(',')];
 

@@ -23,7 +23,7 @@ const Dashboard: React.FC = () => {
   const filteredVouchers = useMemo(() => {
     return vouchers
       .filter(v => v.type === activeTab)
-      .filter(v => filterOutlet === 'all' || v.outlet === filterOutlet)
+      .filter(v => filterOutlet === 'all' || v.outlet === filterOutlet || (v.redeemedOutlet === filterOutlet))
       .sort((a, b) => new Date(b.claimDate).getTime() - new Date(a.claimDate).getTime());
   }, [vouchers, filterOutlet, activeTab]);
 
@@ -125,7 +125,17 @@ const Dashboard: React.FC = () => {
                 <th scope="col" className="px-6 py-3">No. WhatsApp</th>
                 {activeTab === 'PHYSICAL' && <th scope="col" className="px-6 py-3">Gender</th>}
                 <th scope="col" className="px-6 py-3">Kode Voucher</th>
-                <th scope="col" className="px-6 py-3">Outlet</th>
+                
+                {/* Conditional Column Headers for Outlet */}
+                {activeTab === 'DIGITAL' ? (
+                  <>
+                    <th scope="col" className="px-6 py-3">Pengambilan Voucher</th>
+                    <th scope="col" className="px-6 py-3">Penukaran Voucher</th>
+                  </>
+                ) : (
+                   <th scope="col" className="px-6 py-3">Outlet</th>
+                )}
+                
                 <th scope="col" className="px-6 py-3">{activeTab === 'DIGITAL' ? 'Tgl Klaim' : 'Tgl Penukaran'}</th>
                 <th scope="col" className="px-6 py-3">Status</th>
               </tr>
@@ -137,7 +147,21 @@ const Dashboard: React.FC = () => {
                   <td className="px-6 py-4">{v.whatsappNumber}</td>
                   {activeTab === 'PHYSICAL' && <td className="px-6 py-4">{v.gender || '-'}</td>}
                   <td className="px-6 py-4 font-mono">{v.voucherCode}</td>
-                  <td className="px-6 py-4">{v.outlet}</td>
+                  
+                  {/* Conditional Column Body for Outlet */}
+                  {activeTab === 'DIGITAL' ? (
+                    <>
+                      <td className="px-6 py-4">{v.outlet}</td>
+                      <td className="px-6 py-4 text-gray-600">
+                          {v.redeemedOutlet ? (
+                              v.redeemedOutlet === v.outlet ? v.redeemedOutlet : <span className="text-orange-600 font-medium" title="Berbeda dengan rencana pengambilan">{v.redeemedOutlet}</span>
+                          ) : '-'}
+                      </td>
+                    </>
+                  ) : (
+                    <td className="px-6 py-4">{v.outlet}</td>
+                  )}
+
                   <td className="px-6 py-4">{formatDate(v.claimDate)}</td>
                   <td className="px-6 py-4">
                     <span className={`px-2 py-1 text-xs font-medium rounded-full ${v.isRedeemed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
@@ -182,4 +206,3 @@ const Dashboard: React.FC = () => {
 };
 
 export default Dashboard;
-    
