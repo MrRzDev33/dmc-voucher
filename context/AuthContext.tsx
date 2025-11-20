@@ -1,6 +1,7 @@
 
 import React, { createContext, useState, useContext, ReactNode } from 'react';
-import { User } from '../types';
+import { User, Role } from '../types';
+import { supabase } from '../services/supabaseClient';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -9,9 +10,6 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
-
-// Mock user database
-import { MOCK_USERS } from '../services/mockdb';
 
 const STORAGE_KEY = 'dmi_auth_user';
 
@@ -28,27 +26,43 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   });
 
   const login = async (username: string, password: string, rememberMe: boolean): Promise<User | null> => {
-    return new Promise((resolve) => {
-      setTimeout(() => { // Simulate network delay
-        const user = MOCK_USERS.find(u => u.username === username && u.password === password);
-        if (user) {
-          const { password, ...userWithoutPassword } = user;
-          setCurrentUser(userWithoutPassword);
-          
-          // If "Remember Me" is checked, save to local storage
-          if (rememberMe) {
-            localStorage.setItem(STORAGE_KEY, JSON.stringify(userWithoutPassword));
-          } else {
-            // If not checked, ensure we don't have stale data
-            localStorage.removeItem(STORAGE_KEY);
-          }
-          
-          resolve(userWithoutPassword);
-        } else {
-          resolve(null);
-        }
-      }, 500);
-    });
+    try {
+      // Query ke tabel app_users di Supabase
+      // Catatan: Dalam produksi nyata, password harus di-hash. 
+      // Untuk sekarang kita gunakan plain text sesuai request sebelumnya.
+      const { data, error } = await supabase
+        .from('app_users')
+        .select('*')
+        .eq('username', username)
+        .eq('password', password)
+        .single();
+
+      if (error || !data) {
+        console.error("Login failed:", error);
+        return null;
+      }
+
+      const user: User = {
+        id: data.id,
+        username: data.username,
+        role: data.role as Role,
+        outlet: data.outlet || undefined
+      };
+
+      setCurrentUser(user);
+      
+      if (rememberMe) {
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(user));
+      } else {
+        localStorage.removeItem(STORAGE_KEY);
+      }
+      
+      return user;
+
+    } catch (err) {
+      console.error("Unexpected login error", err);
+      return null;
+    }
   };
 
   const logout = () => {

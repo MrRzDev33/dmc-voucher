@@ -5,16 +5,16 @@ export type VoucherType = 'DIGITAL' | 'PHYSICAL';
 
 export interface Voucher {
   id: string;
-  fullName?: string; // Optional (Not used for Physical input anymore)
-  birthYear?: string; // Optional (Not used for Physical input anymore)
-  gender?: 'Pria' | 'Wanita'; // New field for physical vouchers
-  whatsappNumber: string;
-  outlet: Outlet; // The outlet selected during claim (Digital) or input (Physical)
-  voucherCode: string;
-  claimDate: string; // ISO string
-  isRedeemed: boolean;
-  redeemedDate?: string; // ISO string
-  redeemedOutlet?: Outlet; // The outlet where redemption occurred
+  fullName?: string; // Disimpan sebagai full_name di DB
+  birthYear?: string; // Disimpan sebagai birth_year di DB
+  gender?: 'Pria' | 'Wanita';
+  whatsappNumber: string; // whatsapp_number
+  outlet: Outlet;
+  voucherCode: string; // voucher_code
+  claimDate: string; // claim_date
+  isRedeemed: boolean; // is_redeemed
+  redeemedDate?: string; // redeemed_date
+  redeemedOutlet?: Outlet; // redeemed_outlet
   type: VoucherType;
   notes?: string;
 }
@@ -25,19 +25,19 @@ export enum Role {
 }
 
 export interface User {
+    id?: string;
     username: string;
     role: Role;
-    outlet?: Outlet; // For kasir role
+    outlet?: Outlet; // Untuk role kasir
 }
 
 export interface Stats {
-    totalClaims: number; // Combined
-    totalRedeemed: number; // Combined
+    totalClaims: number;
+    totalRedeemed: number;
     claimsToday: number;
     claimsByOutlet: { [key: string]: number };
     claimsPerDay: { date: string; count: number }[];
     
-    // New detailed stats
     totalDigitalVouchers: number;
     claimedDigitalVouchers: number;
     totalPhysicalVouchers: number;
