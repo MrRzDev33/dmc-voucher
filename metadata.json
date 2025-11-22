@@ -1,5 +1,5 @@
 {
-  "name": "DMC Voucher Management System",
+  "name": "DMC Voucher",
   "description": "A web application for customers to claim promotional vouchers and for admins to manage and track voucher redemptions and statistics.",
   "requestFramePermissions": []
 }
