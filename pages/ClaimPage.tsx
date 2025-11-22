@@ -69,7 +69,7 @@ const ClaimPage: React.FC = () => {
   return (
     <div className="container mx-auto px-4 py-8 sm:px-6 lg:px-8 max-w-2xl">
       <div className="bg-white p-8 rounded-xl shadow-lg">
-        <h1 className="text-3xl font-bold text-center text-primary mb-2">Klaim Voucher 12.12!</h1>
+        <h1 className="text-3xl font-bold text-center text-primary mb-2">Klaim Voucher Hari Guru!</h1>
         <p className="text-center text-gray-600 mb-8">Isi data diri sobat di bawah ini untuk mendapatkan voucher eksklusif dari kami.</p>
         <form onSubmit={handleSubmit} className="space-y-6">
           <Input
