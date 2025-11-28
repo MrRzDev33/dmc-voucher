@@ -24,9 +24,18 @@ export const formatDate = (isoString: string): string => {
     }
 }
 
+export const formatCurrency = (amount?: number): string => {
+    return new Intl.NumberFormat('id-ID', {
+        style: 'currency',
+        currency: 'IDR',
+        minimumFractionDigits: 0,
+        maximumFractionDigits: 0
+    }).format(amount || 0);
+}
+
 export const exportToCSV = (data: Voucher[], filename: string) => {
   const headers = [
-    'ID', 'Nama Lengkap', 'Jenis Kelamin', 'Tahun Lahir', 'No WhatsApp', 'Pengambilan Voucher (Klaim)', 'Kode Voucher', 
+    'ID', 'Nama Lengkap', 'Jenis Kelamin', 'Tahun Lahir', 'No WhatsApp', 'Pengambilan Voucher (Klaim)', 'Kode Voucher', 'Nominal Potongan',
     'Tanggal Klaim', 'Sudah Ditebus', 'Tanggal Tebus', 'Penukaran Voucher (Redeem)', 'Tipe', 'Catatan'
   ];
   const csvRows = [headers.join(',')];
@@ -40,6 +49,7 @@ export const exportToCSV = (data: Voucher[], filename: string) => {
       row.whatsappNumber,
       `"${row.outlet.replace(/"/g, '""')}"`,
       row.voucherCode,
+      row.discountAmount || 0,
       formatDate(row.claimDate),
       row.isRedeemed ? 'Ya' : 'Tidak',
       row.redeemedDate ? formatDate(row.redeemedDate) : '-',

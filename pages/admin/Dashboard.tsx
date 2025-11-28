@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import { useVouchers } from '../../context/VoucherContext';
 import { Outlet, Voucher, VoucherType } from '../../types';
 import { OUTLETS } from '../../constants';
-import { exportToCSV, formatDate } from '../../services/util';
+import { exportToCSV, formatDate, formatCurrency } from '../../services/util';
 import StatCard from '../../components/StatCard';
 import Button from '../../components/Button';
 import SearchableSelect from '../../components/SearchableSelect';
@@ -90,7 +90,7 @@ const Dashboard: React.FC = () => {
                 <StatCard title="Voucher Digital Diklaim" value={`${stats.claimedDigitalVouchers} / ${stats.totalDigitalVouchers}`} icon={<Users />} />
                 <StatCard title="Sudah Ditukar" value={vouchers.filter(v => v.type === 'DIGITAL' && v.isRedeemed).length} icon={<TicketCheck />} />
                 <StatCard title="Klaim Hari Ini" value={stats.claimsToday} icon={<CalendarClock />} />
-                <StatCard title="Estimasi Reimbursement" value={`Rp ${(vouchers.filter(v=>v.type==='DIGITAL' && v.isRedeemed).length * 10000).toLocaleString('id-ID')}`} icon={<span className="font-bold">Rp</span>} />
+                <StatCard title="Estimasi Reimbursement" value={`Rp ${(vouchers.filter(v=>v.type==='DIGITAL' && v.isRedeemed).reduce((sum, v) => sum + (v.discountAmount || 10000), 0)).toLocaleString('id-ID')}`} icon={<span className="font-bold">Rp</span>} />
             </>
         ) : (
              <>
@@ -156,10 +156,12 @@ const Dashboard: React.FC = () => {
                 <th scope="col" className="px-6 py-3">No. WhatsApp</th>
                 {activeTab === 'PHYSICAL' && <th scope="col" className="px-6 py-3">Gender</th>}
                 
-                {/* Tambahan Kolom Tahun Lahir Khusus Digital */}
                 {activeTab === 'DIGITAL' && <th scope="col" className="px-6 py-3">Tahun Lahir</th>}
                 
                 <th scope="col" className="px-6 py-3">Kode Voucher</th>
+                
+                {/* Kolom Nominal Potongan */}
+                {activeTab === 'DIGITAL' && <th scope="col" className="px-6 py-3">Nominal</th>}
                 
                 {/* Conditional Column Headers for Outlet */}
                 {activeTab === 'DIGITAL' ? (
@@ -182,12 +184,17 @@ const Dashboard: React.FC = () => {
                   <td className="px-6 py-4">{v.whatsappNumber}</td>
                   {activeTab === 'PHYSICAL' && <td className="px-6 py-4">{v.gender || '-'}</td>}
                   
-                   {/* Isi Kolom Tahun Lahir Khusus Digital */}
                    {activeTab === 'DIGITAL' && <td className="px-6 py-4">{v.birthYear || '-'}</td>}
 
                   <td className="px-6 py-4 font-mono">{v.voucherCode}</td>
                   
-                  {/* Conditional Column Body for Outlet */}
+                  {/* Isi Kolom Nominal */}
+                  {activeTab === 'DIGITAL' && (
+                    <td className="px-6 py-4 font-semibold text-primary">
+                        {formatCurrency(v.discountAmount || 10000)}
+                    </td>
+                  )}
+                  
                   {activeTab === 'DIGITAL' ? (
                     <>
                       <td className="px-6 py-4">{v.outlet}</td>

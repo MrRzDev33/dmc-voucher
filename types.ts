@@ -16,6 +16,7 @@ export interface Voucher {
   redeemedDate?: string; // redeemed_date
   redeemedOutlet?: Outlet; // redeemed_outlet
   type: VoucherType;
+  discountAmount?: number; // discount_amount (New Field)
   notes?: string;
 }
 
@@ -51,10 +52,10 @@ export interface UseVoucherStoreReturn {
   stats: Stats;
   isClaimEnabled: boolean; // Status Global ON/OFF
   toggleClaimStatus: (status: boolean) => Promise<void>; // Fungsi ubah status
-  claimVoucher: (data: Omit<Voucher, 'id' | 'voucherCode' | 'claimDate' | 'isRedeemed' | 'type' | 'redeemedDate' | 'redeemedOutlet'>) => Promise<Voucher>;
+  claimVoucher: (data: Omit<Voucher, 'id' | 'voucherCode' | 'claimDate' | 'isRedeemed' | 'type' | 'redeemedDate' | 'redeemedOutlet' | 'discountAmount'>) => Promise<Voucher>;
   redeemVoucher: (voucherIdentifier: string, redeemedOutlet: Outlet) => Promise<Voucher>;
-  recordPhysicalVoucher: (data: Omit<Voucher, 'id' | 'claimDate' | 'isRedeemed' | 'type' | 'redeemedDate' | 'redeemedOutlet'>) => Promise<Voucher>;
-  loadCodes: (codes: string[], type: VoucherType) => void;
+  recordPhysicalVoucher: (data: Omit<Voucher, 'id' | 'claimDate' | 'isRedeemed' | 'type' | 'redeemedDate' | 'redeemedOutlet' | 'discountAmount'>) => Promise<Voucher>;
+  loadCodes: (codes: string[], type: VoucherType, discountAmount?: number) => void;
   getVouchers: () => Voucher[];
   resetData: () => void;
 }

@@ -8,9 +8,8 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
-  const [isClaimEnabled, setIsClaimEnabled] = useState<boolean>(true); // Default true agar tidak nge-block saat loading awal
+  const [isClaimEnabled, setIsClaimEnabled] = useState<boolean>(true); 
   
-  // State tambahan untuk statistik pool kode
   const [poolStats, setPoolStats] = useState({
     digitalTotal: 0,
     physicalTotal: 0
@@ -28,7 +27,6 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
       redeemedPhysicalVouchers: 0,
   });
 
-  // Fungsi helper untuk mapping data dari Database (snake_case) ke App (camelCase)
   const mapDbToVoucher = (data: any): Voucher => ({
       id: data.id,
       fullName: data.full_name,
@@ -42,13 +40,13 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
       redeemedDate: data.redeemed_date,
       redeemedOutlet: data.redeemed_outlet,
       type: data.type,
+      discountAmount: data.discount_amount, // Map discount amount
       notes: data.notes
   });
 
   const fetchData = useCallback(async () => {
       setLoading(true);
       try {
-          // 1. Ambil Setting Status Klaim (ON/OFF)
           const { data: settingData, error: settingError } = await supabase
             .from('app_settings')
             .select('value')
@@ -59,7 +57,6 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
               setIsClaimEnabled(settingData.value === 'true');
           }
 
-          // 2. Ambil semua voucher yang sudah diklaim/ditebus
           const { data: voucherData, error: voucherError } = await supabase
               .from('vouchers')
               .select('*')
@@ -70,7 +67,6 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
           const mappedVouchers = (voucherData || []).map(mapDbToVoucher);
           setVouchers(mappedVouchers);
 
-          // 3. Hitung total pool kode (untuk statistik)
           const { count: digitalCount } = await supabase
              .from('voucher_pool')
              .select('*', { count: 'exact', head: true })
@@ -94,11 +90,9 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
       }
   }, []);
 
-  // Load data on mount
   useEffect(() => {
     fetchData();
     
-    // Subscribe ke perubahan Realtime Voucher
     const channelVoucher = supabase
     .channel('public:vouchers')
     .on('postgres_changes', { event: '*', schema: 'public', table: 'vouchers' }, () => {
@@ -106,7 +100,6 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
     })
     .subscribe();
 
-    // Subscribe ke perubahan Setting (ON/OFF)
     const channelSettings = supabase
     .channel('public:app_settings')
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings' }, (payload) => {
@@ -122,7 +115,6 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
     };
   }, [fetchData]);
 
-  // Kalkulasi Statistik Lokal berdasarkan data 'vouchers' yang sudah di-fetch
   useEffect(() => {
     if (!loading) {
         const today = getTodayDateString();
@@ -157,13 +149,14 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
   }, [vouchers, loading, poolStats]);
 
 
-  const loadCodes = async (codes: string[], type: VoucherType) => {
+  const loadCodes = async (codes: string[], type: VoucherType, discountAmount?: number) => {
     setError(null);
     try {
         const payload = codes.map(code => ({
             code: code.trim(),
             type: type,
-            is_used: false
+            is_used: false,
+            discount_amount: type === 'DIGITAL' ? (discountAmount || 10000) : null
         }));
 
         const { error } = await supabase
@@ -172,7 +165,7 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
 
         if (error) throw error;
 
-        alert(`${codes.length} kode untuk voucher ${type === 'DIGITAL' ? 'Digital' : 'Fisik'} berhasil diunggah ke server!`);
+        alert(`${codes.length} kode untuk voucher ${type === 'DIGITAL' ? 'Digital' : 'Fisik'} berhasil diunggah!`);
         fetchData(); 
 
     } catch (err: any) {
@@ -189,25 +182,21 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
           
           if (error) throw error;
           
-          // State lokal akan terupdate otomatis lewat subscription realtime, 
-          // tapi kita update manual juga biar responsif di UI admin
           setIsClaimEnabled(status);
       } catch (err: any) {
           console.error("Gagal mengubah status klaim:", err);
-          alert("Gagal mengubah status klaim. Pastikan koneksi internet lancar.");
+          alert("Gagal mengubah status klaim.");
       }
   }
 
-  const claimVoucher = async (data: Omit<Voucher, 'id' | 'voucherCode' | 'claimDate' | 'isRedeemed' | 'type' | 'redeemedDate' | 'redeemedOutlet'>): Promise<Voucher> => {
+  const claimVoucher = async (data: Omit<Voucher, 'id' | 'voucherCode' | 'claimDate' | 'isRedeemed' | 'type' | 'redeemedDate' | 'redeemedOutlet' | 'discountAmount'>): Promise<Voucher> => {
     setError(null);
 
-    // Cek Status ON/OFF sebelum proses (Double Protection: UI + Function)
     if (!isClaimEnabled) {
         throw new Error("Mohon maaf, periode klaim voucher belum dibuka atau sudah ditutup.");
     }
 
     try {
-        // 1. Cek apakah WA sudah pernah klaim
         const { data: existingUser } = await supabase
             .from('vouchers')
             .select('id')
@@ -218,35 +207,51 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
              throw new Error('Nomor WhatsApp ini sudah pernah mengklaim voucher.');
         }
 
-        // 2. Ambil SATU kode digital yang belum terpakai
+        // --- LOGIKA GACHA / RANDOM PICK ---
+        // 1. Hitung jumlah kode yang tersedia
+        const { count, error: countError } = await supabase
+            .from('voucher_pool')
+            .select('*', { count: 'exact', head: true })
+            .eq('type', 'DIGITAL')
+            .eq('is_used', false);
+        
+        if (countError) throw countError;
+        if (count === null || count === 0) {
+            throw new Error('Maaf, semua voucher digital sudah habis diklaim.');
+        }
+
+        // 2. Generate random offset
+        const randomOffset = Math.floor(Math.random() * count);
+
+        // 3. Ambil 1 kode di posisi random tersebut
         const { data: freeCode, error: codeError } = await supabase
             .from('voucher_pool')
-            .select('id, code')
+            .select('id, code, discount_amount')
             .eq('type', 'DIGITAL')
             .eq('is_used', false)
-            .limit(1)
+            .range(randomOffset, randomOffset)
             .maybeSingle(); 
 
         if (codeError) throw codeError;
         if (!freeCode) {
-            throw new Error('Maaf, semua voucher digital sudah habis diklaim.');
+            // Fallback jika terjadi race condition saat pengambilan random
+            throw new Error('Gagal mengambil kode voucher. Silakan coba lagi.');
         }
 
-        // 3. Tandai kode sebagai terpakai
         const { error: updateError } = await supabase
             .from('voucher_pool')
             .update({ is_used: true })
             .eq('id', freeCode.id);
         
-        if (updateError) throw new Error("Terjadi kesalahan saat mengambil kode. Silakan coba lagi.");
+        if (updateError) throw new Error("Terjadi kesalahan saat mengambil kode.");
 
-        // 4. Simpan data klaim
         const newVoucherPayload = {
             full_name: data.fullName,
             birth_year: data.birthYear,
             whatsapp_number: data.whatsappNumber,
             outlet: data.outlet,
             voucher_code: freeCode.code,
+            discount_amount: freeCode.discount_amount || 10000,
             claim_date: new Date().toISOString(),
             is_redeemed: false,
             type: 'DIGITAL'
@@ -258,7 +263,6 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
             .select()
             .single();
 
-        // Handle Unique Constraint Violation (Race Condition)
         if (insertError) {
              if (insertError.code === '23505') {
                  throw new Error('Nomor WhatsApp ini sudah pernah mengklaim voucher.');
@@ -323,7 +327,7 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
     }
   };
   
-  const recordPhysicalVoucher = async (data: Omit<Voucher, 'id' | 'claimDate' | 'isRedeemed' | 'type' | 'redeemedDate' | 'redeemedOutlet'>): Promise<Voucher> => {
+  const recordPhysicalVoucher = async (data: Omit<Voucher, 'id' | 'claimDate' | 'isRedeemed' | 'type' | 'redeemedDate' | 'redeemedOutlet' | 'discountAmount'>): Promise<Voucher> => {
       setError(null);
       const code = data.voucherCode.trim();
 
@@ -378,18 +382,15 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
   }
 
   const resetData = async () => {
-    if (window.confirm('PERINGATAN: Ini akan MENGHAPUS SEMUA data di Database Cloud. Aksi ini tidak bisa dibatalkan. Lanjutkan?')) {
+    if (window.confirm('PERINGATAN: Ini akan MENGHAPUS SEMUA data. Lanjutkan?')) {
         try {
             const { error: err1 } = await supabase.from('vouchers').delete().neq('id', '00000000-0000-0000-0000-000000000000'); 
             const { error: err2 } = await supabase.from('voucher_pool').delete().neq('id', '00000000-0000-0000-0000-000000000000');
-            
             if (err1 || err2) throw new Error("Gagal menghapus data.");
-
             alert('Database berhasil di-reset.');
             fetchData();
         } catch (e: any) {
             console.error("Failed to reset:", e);
-            alert(`Gagal reset: ${e.message}`);
         }
     }
   };
