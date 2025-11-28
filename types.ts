@@ -43,3 +43,18 @@ export interface Stats {
     totalPhysicalVouchers: number;
     redeemedPhysicalVouchers: number;
 }
+
+export interface UseVoucherStoreReturn {
+  vouchers: Voucher[];
+  loading: boolean;
+  error: string | null;
+  stats: Stats;
+  isClaimEnabled: boolean; // Status Global ON/OFF
+  toggleClaimStatus: (status: boolean) => Promise<void>; // Fungsi ubah status
+  claimVoucher: (data: Omit<Voucher, 'id' | 'voucherCode' | 'claimDate' | 'isRedeemed' | 'type' | 'redeemedDate' | 'redeemedOutlet'>) => Promise<Voucher>;
+  redeemVoucher: (voucherIdentifier: string, redeemedOutlet: Outlet) => Promise<Voucher>;
+  recordPhysicalVoucher: (data: Omit<Voucher, 'id' | 'claimDate' | 'isRedeemed' | 'type' | 'redeemedDate' | 'redeemedOutlet'>) => Promise<Voucher>;
+  loadCodes: (codes: string[], type: VoucherType) => void;
+  getVouchers: () => Voucher[];
+  resetData: () => void;
+}

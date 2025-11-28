@@ -1,6 +1,6 @@
-
 import React, { createContext, useContext, ReactNode } from 'react';
-import { useVoucherStore, UseVoucherStoreReturn } from '../hooks/useVoucherStore';
+import { useVoucherStore } from '../hooks/useVoucherStore';
+import { UseVoucherStoreReturn } from '../types';
 
 const VoucherContext = createContext<UseVoucherStoreReturn | undefined>(undefined);
 

@@ -10,15 +10,16 @@ import SearchableSelect from '../../components/SearchableSelect';
 import UploadCodes from '../../components/UploadCodes';
 import TabButton from '../../components/TabButton';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Download, Users, TicketCheck, CalendarClock, Ticket, Smartphone, Warehouse } from '../../components/icons/Icons';
+import { Download, Users, TicketCheck, CalendarClock, Ticket, Smartphone, Warehouse, SlidersHorizontal } from '../../components/icons/Icons';
 
 const VOUCHERS_PER_PAGE = 10;
 
 const Dashboard: React.FC = () => {
-  const { vouchers, stats, loading, loadCodes, resetData } = useVouchers();
+  const { vouchers, stats, loading, loadCodes, resetData, isClaimEnabled, toggleClaimStatus } = useVouchers();
   const [filterOutlet, setFilterOutlet] = useState<Outlet | 'all'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState<VoucherType>('DIGITAL');
+  const [isToggling, setIsToggling] = useState(false);
 
   const filteredVouchers = useMemo(() => {
     return vouchers
@@ -38,10 +39,40 @@ const Dashboard: React.FC = () => {
     exportToCSV(filteredVouchers, `${activeTab.toLowerCase()}-vouchers-${filterOutlet}-${new Date().toISOString().split('T')[0]}`);
   };
 
+  const handleToggleStatus = async () => {
+      setIsToggling(true);
+      await toggleClaimStatus(!isClaimEnabled);
+      setIsToggling(false);
+  }
+
   if (loading) return <div className="text-center p-10">Memuat data dasbor...</div>;
 
   return (
     <div className="space-y-8">
+      {/* Control Panel Header */}
+      <div className="bg-white p-4 rounded-xl shadow flex flex-col md:flex-row justify-between items-center gap-4">
+        <h2 className="text-lg font-semibold flex items-center gap-2">
+            <SlidersHorizontal className="text-gray-500" />
+            Pengaturan Sistem
+        </h2>
+        
+        <div className="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
+            <span className="text-sm font-medium text-gray-700">Status Klaim Voucher:</span>
+            <button
+                onClick={handleToggleStatus}
+                disabled={isToggling}
+                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                    isClaimEnabled ? 'bg-green-500' : 'bg-gray-300'
+                }`}
+            >
+                <span className={`${isClaimEnabled ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`} />
+            </button>
+            <span className={`text-sm font-bold ${isClaimEnabled ? 'text-green-600' : 'text-gray-500'}`}>
+                {isClaimEnabled ? 'ON (Buka)' : 'OFF (Tutup)'}
+            </span>
+        </div>
+      </div>
+
       {/* Tab Navigation */}
       <div className="flex border-b border-gray-200">
           <TabButton onClick={() => setActiveTab('DIGITAL')} isActive={activeTab === 'DIGITAL'} icon={<Smartphone />}>
@@ -124,6 +155,10 @@ const Dashboard: React.FC = () => {
                 {activeTab === 'DIGITAL' && <th scope="col" className="px-6 py-3">Nama / Info</th>}
                 <th scope="col" className="px-6 py-3">No. WhatsApp</th>
                 {activeTab === 'PHYSICAL' && <th scope="col" className="px-6 py-3">Gender</th>}
+                
+                {/* Tambahan Kolom Tahun Lahir Khusus Digital */}
+                {activeTab === 'DIGITAL' && <th scope="col" className="px-6 py-3">Tahun Lahir</th>}
+                
                 <th scope="col" className="px-6 py-3">Kode Voucher</th>
                 
                 {/* Conditional Column Headers for Outlet */}
@@ -146,6 +181,10 @@ const Dashboard: React.FC = () => {
                   {activeTab === 'DIGITAL' && <td className="px-6 py-4 font-medium text-gray-800">{v.fullName || '-'}</td>}
                   <td className="px-6 py-4">{v.whatsappNumber}</td>
                   {activeTab === 'PHYSICAL' && <td className="px-6 py-4">{v.gender || '-'}</td>}
+                  
+                   {/* Isi Kolom Tahun Lahir Khusus Digital */}
+                   {activeTab === 'DIGITAL' && <td className="px-6 py-4">{v.birthYear || '-'}</td>}
+
                   <td className="px-6 py-4 font-mono">{v.voucherCode}</td>
                   
                   {/* Conditional Column Body for Outlet */}
