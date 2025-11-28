@@ -28,17 +28,21 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const login = async (username: string, password: string, rememberMe: boolean): Promise<User | null> => {
     try {
       // Query ke tabel app_users di Supabase
-      // Catatan: Dalam produksi nyata, password harus di-hash. 
-      // Untuk sekarang kita gunakan plain text sesuai request sebelumnya.
+      // Menggunakan maybeSingle() agar tidak error jika data tidak ditemukan (user/pass salah)
       const { data, error } = await supabase
         .from('app_users')
         .select('*')
         .eq('username', username)
         .eq('password', password)
-        .single();
+        .maybeSingle();
 
-      if (error || !data) {
-        console.error("Login failed:", error);
+      if (error) {
+        console.error("Login error details:", error);
+        return null;
+      }
+
+      if (!data) {
+        // Username atau password salah (data null, bukan error sistem)
         return null;
       }
 
