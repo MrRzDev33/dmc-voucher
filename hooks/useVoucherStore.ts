@@ -104,7 +104,8 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
     .channel('public:app_settings')
     .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'app_settings' }, (payload) => {
         if (payload.new && payload.new.key === 'claim_enabled') {
-            setIsClaimEnabled(payload.new.value === 'true');
+            const isEnabled = payload.new.value === 'true';
+            setIsClaimEnabled(isEnabled);
         }
     })
     .subscribe();
@@ -192,11 +193,24 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
   const claimVoucher = async (data: Omit<Voucher, 'id' | 'voucherCode' | 'claimDate' | 'isRedeemed' | 'type' | 'redeemedDate' | 'redeemedOutlet' | 'discountAmount'>): Promise<Voucher> => {
     setError(null);
 
+    // Cek State Lokal
     if (!isClaimEnabled) {
         throw new Error("Mohon maaf, periode klaim voucher belum dibuka atau sudah ditutup.");
     }
 
     try {
+        // Double Check Server Side (Untuk menangani kondisi user belum refresh / realtime delay)
+        const { data: settingData } = await supabase
+            .from('app_settings')
+            .select('value')
+            .eq('key', 'claim_enabled')
+            .maybeSingle();
+        
+        if (settingData && settingData.value !== 'true') {
+            setIsClaimEnabled(false); // Paksa update state lokal
+            throw new Error("Mohon maaf, periode klaim voucher sudah ditutup.");
+        }
+
         const { data: existingUser } = await supabase
             .from('vouchers')
             .select('id')

@@ -18,7 +18,7 @@ const VoucherCard = forwardRef<HTMLDivElement, VoucherCardProps>(({ voucher }, r
         <div className="flex justify-between items-start mb-2">
           <div>
             <span className="text-3xl font-bold tracking-tight">DMC Voucher</span>
-            <p className="text-sm text-orange-200 mt-1">Voucher Promo Eksklusif</p>
+            <p className="text-sm text-orange-200 mt-1">Voucher Promo 12.12</p>
           </div>
           <div className="text-right">
              <div className="text-xs uppercase tracking-widest text-orange-200">Potongan</div>
@@ -30,28 +30,35 @@ const VoucherCard = forwardRef<HTMLDivElement, VoucherCardProps>(({ voucher }, r
 
         <div className="border-t-2 border-dashed border-white/30 my-5"></div>
 
-        <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm space-y-3 text-sm border border-white/20">
-            <div className="flex justify-between items-center">
+        <div className="bg-white/10 rounded-lg p-4 backdrop-blur-sm border border-white/20 text-sm">
+            <div className="flex justify-between items-center mb-4">
                  <span className="text-orange-100 uppercase text-xs">Kode Unik</span>
                  <span className="font-mono font-bold text-xl tracking-wider bg-white text-primary px-2 py-1 rounded">{voucher.voucherCode}</span>
             </div>
             
-            <div className="grid grid-cols-2 gap-2 pt-2">
-                <div>
-                    <p className="text-xs uppercase text-orange-200">Nama</p>
-                    <p className="font-semibold truncate">{voucher.fullName || '-'}</p>
+            <div className="space-y-3">
+                {/* Baris 1: Nama dan Tanggal */}
+                <div className="flex justify-between items-start gap-4">
+                    <div className="flex-1 min-w-0">
+                        <p className="text-xs uppercase text-orange-200">Nama</p>
+                        <p className="font-semibold truncate">{voucher.fullName || '-'}</p>
+                    </div>
+                    <div className="text-right flex-shrink-0">
+                        <p className="text-xs uppercase text-orange-200">Tanggal Klaim</p>
+                        <p className="font-semibold">{formatDate(voucher.claimDate)}</p>
+                    </div>
                 </div>
-                <div>
-                    <p className="text-xs uppercase text-orange-200 text-right">Tanggal Klaim</p>
-                    <p className="font-semibold text-right">{formatDate(voucher.claimDate)}</p>
-                </div>
+
+                {/* Baris 2: WhatsApp */}
                 <div>
                     <p className="text-xs uppercase text-orange-200">WhatsApp</p>
                     <p className="font-semibold">{voucher.whatsappNumber}</p>
                 </div>
-                 <div>
-                    <p className="text-xs uppercase text-orange-200 text-right">Outlet</p>
-                    <p className="font-semibold text-right truncate">{voucher.outlet}</p>
+
+                {/* Baris 3: Outlet (Full Width & Terpisah) */}
+                <div className="pt-2 mt-2 border-t border-white/10">
+                     <p className="text-xs uppercase text-orange-200">Outlet</p>
+                     <p className="font-semibold leading-snug break-words">{voucher.outlet}</p>
                 </div>
             </div>
         </div>
