@@ -160,7 +160,18 @@ const ClaimPage: React.FC = () => {
           {formError && <p className="text-red-500 text-sm">{formError}</p>}
           {error && <p className="text-red-500 text-sm">{error.includes("limit") ? 'Maaf, batas klaim harian telah tercapai.' : error}</p>}
           
-          <Button type="submit" disabled={isSubmitting || isBlocked} className="w-full">
+          {/* 
+            PERBAIKAN CRASH GOOGLE TRANSLATE:
+            Menambahkan className="notranslate" dan attribute translate="no"
+            pada tombol submit. Ini mencegah browser mengubah teks tombol saat loading,
+            yang menyebabkan React kehilangan sinkronisasi DOM (crash layar putih).
+          */}
+          <Button 
+            type="submit" 
+            disabled={isSubmitting || isBlocked} 
+            className="w-full notranslate" 
+            translate="no"
+          >
             {isSubmitting ? <><Loader2 className="animate-spin mr-2" /> Memproses...</> : 'Klaim Voucher Saya'}
           </Button>
         </form>
