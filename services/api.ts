@@ -41,36 +41,61 @@ const supabaseApi = {
     async getSettings(key: string): Promise<{ setting_value: string }> {
         if (!supabase) return { setting_value: 'true' };
         
-        // Fix: Use 'setting_key' and 'setting_value' as expected by the database schema
-        const { data, error } = await supabase
-            .from('app_settings')
-            .select('setting_value')
-            .eq('setting_key', key)
-            .single();
+        try {
+            // Coba ambil menggunakan kolom 'key' dan 'value'
+            const { data, error } = await supabase
+                .from('app_settings')
+                .select('value')
+                .eq('key', key)
+                .single();
+                
+            // Default values: claim_enabled = true, daily_limit = 1000
+            const defaultValue = key === 'daily_limit' ? '1000' : 'true';
             
-        // Default values: claim_enabled = true, daily_limit = 1000
-        const defaultValue = key === 'daily_limit' ? '1000' : 'true';
-        
-        if (error || !data) return { setting_value: defaultValue };
-        return { setting_value: data.setting_value };
+            if (error || !data) {
+                return { setting_value: defaultValue };
+            }
+            return { setting_value: data.value };
+        } catch (e) {
+            console.error("Error fetching setting:", e);
+            return { setting_value: key === 'daily_limit' ? '1000' : 'true' };
+        }
     },
 
     async updateSetting(key: string, value: string): Promise<{ success: boolean }> {
         if (!supabase) return { success: false };
         
-        // Fix: Use 'setting_key' and 'setting_value' columns
-        const { error } = await supabase
-            .from('app_settings')
-            .upsert({ setting_key: key, setting_value: value }, { onConflict: 'setting_key' });
+        try {
+            // Cara Aman: Cek dulu apakah row ada, baru Update atau Insert.
+            // Ini menghindari error jika kolom 'key' tidak memiliki unique constraint di DB.
+            const { data: existing } = await supabase
+                .from('app_settings')
+                .select('id')
+                .eq('key', key)
+                .maybeSingle();
+
+            if (existing) {
+                const { error } = await supabase
+                    .from('app_settings')
+                    .update({ value: value })
+                    .eq('key', key);
+                if (error) throw error;
+            } else {
+                const { error } = await supabase
+                    .from('app_settings')
+                    .insert({ key: key, value: value });
+                if (error) throw error;
+            }
             
-        if (error) throw new Error(error.message);
-        return { success: true };
+            return { success: true };
+        } catch (err: any) {
+            throw new Error(err.message || "Gagal menyimpan pengaturan.");
+        }
     },
 
     async getVouchers(): Promise<any[]> {
         if (!supabase) return [];
         
-        // Tabel 'vouchers' tetap sama (ada di screenshot)
         const { data, error } = await supabase
             .from('vouchers')
             .select('*')
@@ -83,7 +108,6 @@ const supabaseApi = {
     async getPoolStats(type: VoucherType): Promise<{ count: number }> {
         if (!supabase) return { count: 0 };
         
-        // MENGGUNAKAN TABEL 'voucher_pool' (PENGGANTI voucher_codes)
         const { count, error } = await supabase
             .from('voucher_pool')
             .select('*', { count: 'exact', head: true })
@@ -97,28 +121,40 @@ const supabaseApi = {
         if (!supabase) throw new Error("Supabase client not initialized");
 
         // 0. CEK LIMIT HARIAN (Fitur Baru)
-        // Ambil limit dari app_settings using corrected column names
-        const { data: limitData } = await supabase
-            .from('app_settings')
-            .select('setting_value')
-            .eq('setting_key', 'daily_limit')
-            .single();
+        // Kita keluarkan logic fetch limit agar errornya terlihat jika gagal
+        let dailyLimit = 1000;
         
-        const dailyLimit = limitData ? parseInt(limitData.setting_value) : 1000;
+        try {
+            const { data: limitData } = await supabase
+                .from('app_settings')
+                .select('value')
+                .eq('key', 'daily_limit')
+                .maybeSingle();
+            
+            if (limitData && limitData.value) {
+                dailyLimit = parseInt(limitData.value);
+            }
+        } catch (err) {
+            console.warn("Gagal membaca daily_limit, menggunakan default 1000.", err);
+        }
 
         // Hitung klaim hari ini
+        // Menggunakan waktu server/UTC untuk konsistensi atau handle timezone di client
+        // Di sini kita gunakan string comparison 'YYYY-MM-DD' sederhana (UTC-based)
         const todayStr = new Date().toISOString().split('T')[0];
+        
         const { count: claimsToday, error: countError } = await supabase
             .from('vouchers')
             .select('*', { count: 'exact', head: true })
             .gte('claim_date', `${todayStr}T00:00:00`)
             .lte('claim_date', `${todayStr}T23:59:59`)
-            .eq('type', 'DIGITAL'); // Hanya hitung voucher digital
+            .eq('type', 'DIGITAL'); 
 
-        if (countError) throw new Error("Gagal memeriksa kuota harian.");
-        
-        if ((claimsToday || 0) >= dailyLimit) {
-            throw new Error("Mohon maaf, kuota voucher harian sudah habis. Silakan coba lagi besok.");
+        // Jika tidak error saat hitung, dan jumlah >= limit, STOP.
+        if (!countError && typeof claimsToday === 'number') {
+            if (claimsToday >= dailyLimit) {
+                throw new Error(`Mohon maaf, kuota voucher harian (${dailyLimit}) sudah habis. Silakan coba lagi besok.`);
+            }
         }
 
         // 1. Cek Duplikat Nomor WA
@@ -126,14 +162,13 @@ const supabaseApi = {
             .from('vouchers')
             .select('id')
             .eq('whatsapp_number', data.whatsapp_number)
-            .single();
+            .maybeSingle();
 
         if (existing) {
             throw new Error("Nomor WhatsApp ini sudah pernah mengklaim voucher.");
         }
 
         // 2. Ambil Kode Voucher yang tersedia dari 'voucher_pool'
-        // Strategy: Try to find a code. If none found, AUTO-GENERATE one.
         let voucherCode = '';
         let discount = 10000;
         let poolId = null;
@@ -165,7 +200,6 @@ const supabaseApi = {
             }
         } else {
             // FALLBACK: Auto-generate code if stock is empty
-            // This ensures users can still claim vouchers even if the admin hasn't uploaded codes
             voucherCode = generateVoucherCode();
             discount = 10000;
         }
@@ -201,7 +235,7 @@ const supabaseApi = {
             .select('*')
             .or(`voucher_code.eq.${identifier},whatsapp_number.eq.${identifier}`)
             .eq('type', 'DIGITAL')
-            .single();
+            .maybeSingle();
 
         if (fetchError || !voucher) {
             throw new Error("Voucher tidak ditemukan.");
