@@ -2,6 +2,7 @@
 import { Voucher, VoucherType, User } from '../types';
 import { supabase } from './supabaseClient';
 import mockApi from './mockdb';
+import { generateVoucherCode } from './util';
 
 // ============================================================================
 // KONFIGURASI KONEKSI DATABASE
@@ -16,9 +17,9 @@ const supabaseApi = {
     async login(username: string, password: string): Promise<User | null> {
         if (!supabase) return null;
         
-        // Mengambil data user dari tabel 'users'
+        // MENGGUNAKAN TABEL 'app_users' SESUAI SCREENSHOT
         const { data, error } = await supabase
-            .from('users')
+            .from('app_users')
             .select('*')
             .eq('username', username)
             .single();
@@ -40,23 +41,27 @@ const supabaseApi = {
     async getSettings(key: string): Promise<{ setting_value: string }> {
         if (!supabase) return { setting_value: 'true' };
         
-        const { data } = await supabase
-            .from('settings')
+        // Fix: Use 'setting_key' and 'setting_value' as expected by the database schema
+        const { data, error } = await supabase
+            .from('app_settings')
             .select('setting_value')
             .eq('setting_key', key)
             .single();
             
         // Default values: claim_enabled = true, daily_limit = 1000
         const defaultValue = key === 'daily_limit' ? '1000' : 'true';
-        return data || { setting_value: defaultValue };
+        
+        if (error || !data) return { setting_value: defaultValue };
+        return { setting_value: data.setting_value };
     },
 
     async updateSetting(key: string, value: string): Promise<{ success: boolean }> {
         if (!supabase) return { success: false };
         
+        // Fix: Use 'setting_key' and 'setting_value' columns
         const { error } = await supabase
-            .from('settings')
-            .upsert({ setting_key: key, setting_value: value });
+            .from('app_settings')
+            .upsert({ setting_key: key, setting_value: value }, { onConflict: 'setting_key' });
             
         if (error) throw new Error(error.message);
         return { success: true };
@@ -65,6 +70,7 @@ const supabaseApi = {
     async getVouchers(): Promise<any[]> {
         if (!supabase) return [];
         
+        // Tabel 'vouchers' tetap sama (ada di screenshot)
         const { data, error } = await supabase
             .from('vouchers')
             .select('*')
@@ -77,8 +83,9 @@ const supabaseApi = {
     async getPoolStats(type: VoucherType): Promise<{ count: number }> {
         if (!supabase) return { count: 0 };
         
+        // MENGGUNAKAN TABEL 'voucher_pool' (PENGGANTI voucher_codes)
         const { count, error } = await supabase
-            .from('voucher_codes')
+            .from('voucher_pool')
             .select('*', { count: 'exact', head: true })
             .eq('type', type);
 
@@ -90,9 +97,9 @@ const supabaseApi = {
         if (!supabase) throw new Error("Supabase client not initialized");
 
         // 0. CEK LIMIT HARIAN (Fitur Baru)
-        // Ambil limit dari settings
+        // Ambil limit dari app_settings using corrected column names
         const { data: limitData } = await supabase
-            .from('settings')
+            .from('app_settings')
             .select('setting_value')
             .eq('setting_key', 'daily_limit')
             .single();
@@ -125,33 +132,45 @@ const supabaseApi = {
             throw new Error("Nomor WhatsApp ini sudah pernah mengklaim voucher.");
         }
 
-        // 2. Ambil Kode Voucher yang tersedia (Mencegah Race Condition Sederhana)
-        // Kita mengambil 1 kode yang belum terpakai
-        const { data: codeData, error: codeError } = await supabase
-            .from('voucher_codes')
+        // 2. Ambil Kode Voucher yang tersedia dari 'voucher_pool'
+        // Strategy: Try to find a code. If none found, AUTO-GENERATE one.
+        let voucherCode = '';
+        let discount = 10000;
+        let poolId = null;
+
+        const { data: codeData } = await supabase
+            .from('voucher_pool')
             .select('*')
             .eq('is_used', false)
             .eq('type', 'DIGITAL')
             .limit(1)
-            .single();
+            .maybeSingle();
 
-        if (codeError || !codeData) {
-            throw new Error("Mohon maaf, stok voucher digital saat ini habis.");
+        if (codeData) {
+            voucherCode = codeData.code;
+            discount = codeData.discount_amount;
+            poolId = codeData.id;
+
+            // Mark as used
+            const { error: updateError } = await supabase
+                .from('voucher_pool')
+                .update({ is_used: true })
+                .eq('id', poolId);
+
+            if (updateError) {
+                // If update fails (e.g. race condition), fallback to generated code
+                console.warn("Concurrency issue on voucher pool, falling back to generated code.");
+                voucherCode = generateVoucherCode();
+                discount = 10000;
+            }
+        } else {
+            // FALLBACK: Auto-generate code if stock is empty
+            // This ensures users can still claim vouchers even if the admin hasn't uploaded codes
+            voucherCode = generateVoucherCode();
+            discount = 10000;
         }
 
-        // 3. Tandai Kode sebagai Terpakai
-        const { error: updateError } = await supabase
-            .from('voucher_codes')
-            .update({ is_used: true })
-            .eq('id', codeData.id);
-
-        if (updateError) {
-            // Jika gagal update (mungkin diambil orang lain milidetik yg sama), coba recursive/ulang
-            // Untuk simplifikasi di sini kita lempar error agar user mencoba lagi
-            throw new Error("Gagal mengunci kode voucher. Silakan coba tekan tombol klaim lagi.");
-        }
-
-        // 4. Masukkan data Klaim Voucher
+        // 3. Masukkan data Klaim Voucher
         const { data: newVoucher, error: insertError } = await supabase
             .from('vouchers')
             .insert({
@@ -159,9 +178,9 @@ const supabaseApi = {
                 birth_year: data.birth_year,
                 whatsapp_number: data.whatsapp_number,
                 outlet: data.outlet,
-                voucher_code: codeData.code,
+                voucher_code: voucherCode,
                 type: 'DIGITAL',
-                discount_amount: codeData.discount_amount,
+                discount_amount: discount,
                 claim_date: new Date().toISOString(),
                 is_redeemed: false
             })
@@ -234,6 +253,7 @@ const supabaseApi = {
     async uploadCodes(codes: string[], type: VoucherType, discountAmount?: number): Promise<{ success: boolean, count: number }> {
         if (!supabase) throw new Error("Supabase client not initialized");
         
+        // Insert ke 'voucher_pool'
         const rows = codes.map(code => ({
             code: code.trim(),
             type,
@@ -242,7 +262,7 @@ const supabaseApi = {
         }));
 
         const { error } = await supabase
-            .from('voucher_codes')
+            .from('voucher_pool')
             .insert(rows);
 
         if (error) throw new Error(error.message);
@@ -254,8 +274,8 @@ const supabaseApi = {
 
         // Hapus semua vouchers
         await supabase.from('vouchers').delete().neq('id', 0); // Delete all
-        // Reset status codes
-        await supabase.from('voucher_codes').update({ is_used: false }).neq('id', 0);
+        // Reset status codes di voucher_pool
+        await supabase.from('voucher_pool').update({ is_used: false }).neq('id', 0);
         
         return { success: true };
     }
