@@ -51,7 +51,9 @@ export interface UseVoucherStoreReturn {
   error: string | null;
   stats: Stats;
   isClaimEnabled: boolean; // Status Global ON/OFF
-  toggleClaimStatus: (status: boolean) => Promise<void>; // Fungsi ubah status
+  dailyLimit: number; // Limit Harian Dinamis
+  toggleClaimStatus: (status: boolean) => Promise<void>; 
+  updateDailyLimit: (limit: number) => Promise<void>; // Fungsi update limit
   claimVoucher: (data: Omit<Voucher, 'id' | 'voucherCode' | 'claimDate' | 'isRedeemed' | 'type' | 'redeemedDate' | 'redeemedOutlet' | 'discountAmount'>) => Promise<Voucher>;
   redeemVoucher: (voucherIdentifier: string, redeemedOutlet: Outlet) => Promise<Voucher>;
   recordPhysicalVoucher: (data: Omit<Voucher, 'id' | 'claimDate' | 'isRedeemed' | 'type' | 'redeemedDate' | 'redeemedOutlet' | 'discountAmount'>) => Promise<Voucher>;

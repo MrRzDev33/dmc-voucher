@@ -1,3 +1,4 @@
+
 import { Outlet } from './types';
 
 export const OUTLETS: Outlet[] = [
@@ -151,5 +152,3 @@ export const OUTLETS: Outlet[] = [
 'Wonosobo - DMC Wonosobo',
 'Yogyakarta - DMC Perintis'
 ];
-
-export const DAILY_CLAIM_LIMIT = 100; // Global limit

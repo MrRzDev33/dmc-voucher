@@ -1,7 +1,6 @@
-
 import React, { createContext, useState, useContext, ReactNode } from 'react';
 import { User, Role } from '../types';
-import { supabase } from '../services/supabaseClient';
+import { api } from '../services/api';
 
 interface AuthContextType {
   currentUser: User | null;
@@ -27,22 +26,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const login = async (username: string, password: string, rememberMe: boolean): Promise<User | null> => {
     try {
-      // Query ke tabel app_users di Supabase
-      // Menggunakan maybeSingle() agar tidak error jika data tidak ditemukan (user/pass salah)
-      const { data, error } = await supabase
-        .from('app_users')
-        .select('*')
-        .eq('username', username)
-        .eq('password', password)
-        .maybeSingle();
-
-      if (error) {
-        console.error("Login error details:", error);
-        return null;
-      }
+      // Login via PHP API
+      const data = await api.login(username, password);
 
       if (!data) {
-        // Username atau password salah (data null, bukan error sistem)
         return null;
       }
 

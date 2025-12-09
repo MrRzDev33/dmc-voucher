@@ -75,7 +75,24 @@ const ClaimPage: React.FC = () => {
     const h2c = canvasModule.default;
 
     if (voucherRef.current) {
-      const canvas = await h2c(voucherRef.current, { scale: 2 });
+      // Kita gunakan opsi 'onclone' untuk memanipulasi elemen sebelum di-screenshot.
+      // Ini penting agar saat download di HP (layar kecil), hasil gambar tetap lebar (seperti di desktop)
+      // dan teks tidak terpotong atau turun berantakan.
+      const canvas = await h2c(voucherRef.current, { 
+          scale: 3, // Resolusi tinggi
+          backgroundColor: null,
+          onclone: (clonedDoc) => {
+              const clonedElement = clonedDoc.getElementById('printable-voucher');
+              if (clonedElement) {
+                  // Paksa lebar elemen di dalam canvas menjadi 480px (ukuran ideal kartu)
+                  // Ini mencegah layout "squashed" di mobile
+                  clonedElement.style.width = '480px';
+                  clonedElement.style.maxWidth = 'none';
+                  clonedElement.style.margin = '0 auto';
+              }
+          }
+      });
+
       const link = document.createElement('a');
       link.download = `Voucher-DMC-${generatedVoucher?.voucherCode}.png`;
       link.href = canvas.toDataURL('image/png');
@@ -160,12 +177,6 @@ const ClaimPage: React.FC = () => {
           {formError && <p className="text-red-500 text-sm">{formError}</p>}
           {error && <p className="text-red-500 text-sm">{error.includes("limit") ? 'Maaf, batas klaim harian telah tercapai.' : error}</p>}
           
-          {/* 
-            PERBAIKAN CRASH GOOGLE TRANSLATE:
-            Menambahkan className="notranslate" dan attribute translate="no"
-            pada tombol submit. Ini mencegah browser mengubah teks tombol saat loading,
-            yang menyebabkan React kehilangan sinkronisasi DOM (crash layar putih).
-          */}
           <Button 
             type="submit" 
             disabled={isSubmitting || isBlocked} 
@@ -185,7 +196,10 @@ const ClaimPage: React.FC = () => {
           title="Voucher Berhasil Dibuat!"
         >
             <p className="text-center text-gray-600 mb-4">Selamat! Ini adalah voucher Anda. Silakan unduh dan tunjukkan kepada kasir di outlet.</p>
-            <VoucherCard ref={voucherRef} voucher={generatedVoucher} />
+            {/* Voucher Card Container */}
+            <div className="flex justify-center w-full">
+                <VoucherCard ref={voucherRef} voucher={generatedVoucher} />
+            </div>
             <div className="mt-6 flex justify-center">
                 <Button onClick={handleDownload}>
                     Unduh Voucher (PNG)
