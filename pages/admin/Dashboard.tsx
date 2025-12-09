@@ -1,5 +1,5 @@
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { useVouchers } from '../../context/VoucherContext';
 import { Outlet, Voucher, VoucherType } from '../../types';
 import { OUTLETS } from '../../constants';
@@ -10,16 +10,24 @@ import SearchableSelect from '../../components/SearchableSelect';
 import UploadCodes from '../../components/UploadCodes';
 import TabButton from '../../components/TabButton';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Download, Users, TicketCheck, CalendarClock, Ticket, Smartphone, Warehouse, SlidersHorizontal } from '../../components/icons/Icons';
+import { Download, Users, TicketCheck, CalendarClock, Ticket, Smartphone, Warehouse, SlidersHorizontal, Save } from '../../components/icons/Icons';
 
 const VOUCHERS_PER_PAGE = 10;
 
 const Dashboard: React.FC = () => {
-  const { vouchers, stats, loading, loadCodes, resetData, isClaimEnabled, toggleClaimStatus } = useVouchers();
+  const { vouchers, stats, loading, loadCodes, resetData, isClaimEnabled, dailyLimit, toggleClaimStatus, updateDailyLimit } = useVouchers();
   const [filterOutlet, setFilterOutlet] = useState<Outlet | 'all'>('all');
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState<VoucherType>('DIGITAL');
   const [isToggling, setIsToggling] = useState(false);
+  
+  // State untuk input limit harian
+  const [limitInput, setLimitInput] = useState<string>('1000');
+  const [isUpdatingLimit, setIsUpdatingLimit] = useState(false);
+
+  useEffect(() => {
+      setLimitInput(String(dailyLimit));
+  }, [dailyLimit]);
 
   const filteredVouchers = useMemo(() => {
     return vouchers
@@ -45,31 +53,66 @@ const Dashboard: React.FC = () => {
       setIsToggling(false);
   }
 
+  const handleUpdateLimit = async () => {
+      const val = parseInt(limitInput);
+      if (isNaN(val) || val < 0) {
+          alert("Masukkan angka yang valid untuk batas harian.");
+          return;
+      }
+      setIsUpdatingLimit(true);
+      await updateDailyLimit(val);
+      setIsUpdatingLimit(false);
+  }
+
   if (loading) return <div className="text-center p-10">Memuat data dasbor...</div>;
 
   return (
     <div className="space-y-8">
       {/* Control Panel Header */}
-      <div className="bg-white p-4 rounded-xl shadow flex flex-col md:flex-row justify-between items-center gap-4">
-        <h2 className="text-lg font-semibold flex items-center gap-2">
+      <div className="bg-white p-6 rounded-xl shadow flex flex-col lg:flex-row justify-between items-start lg:items-center gap-6">
+        <h2 className="text-lg font-semibold flex items-center gap-2 min-w-[150px]">
             <SlidersHorizontal className="text-gray-500" />
-            Pengaturan Sistem
+            Pengaturan
         </h2>
         
-        <div className="flex items-center gap-3 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200">
-            <span className="text-sm font-medium text-gray-700">Status Klaim Voucher:</span>
-            <button
-                onClick={handleToggleStatus}
-                disabled={isToggling}
-                className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
-                    isClaimEnabled ? 'bg-green-500' : 'bg-gray-300'
-                }`}
-            >
-                <span className={`${isClaimEnabled ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`} />
-            </button>
-            <span className={`text-sm font-bold ${isClaimEnabled ? 'text-green-600' : 'text-gray-500'}`}>
-                {isClaimEnabled ? 'ON (Buka)' : 'OFF (Tutup)'}
-            </span>
+        <div className="flex flex-col sm:flex-row gap-6 w-full lg:w-auto">
+            {/* Setting: Status ON/OFF */}
+            <div className="flex items-center justify-between gap-3 bg-gray-50 px-4 py-3 rounded-lg border border-gray-200 w-full sm:w-auto">
+                <div className="flex flex-col">
+                    <span className="text-sm font-medium text-gray-700">Status Klaim</span>
+                    <span className={`text-xs font-bold ${isClaimEnabled ? 'text-green-600' : 'text-gray-500'}`}>
+                        {isClaimEnabled ? 'SEDANG DIBUKA' : 'DITUTUP'}
+                    </span>
+                </div>
+                <button
+                    onClick={handleToggleStatus}
+                    disabled={isToggling}
+                    className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 ${
+                        isClaimEnabled ? 'bg-green-500' : 'bg-gray-300'
+                    }`}
+                >
+                    <span className={`${isClaimEnabled ? 'translate-x-6' : 'translate-x-1'} inline-block h-4 w-4 transform rounded-full bg-white transition-transform`} />
+                </button>
+            </div>
+
+            {/* Setting: Limit Harian */}
+            <div className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200 w-full sm:w-auto">
+                 <div className="flex flex-col flex-grow">
+                    <span className="text-xs text-gray-500">Batas Harian (Saat ini: {stats.claimsToday})</span>
+                    <div className="flex items-center gap-2">
+                        <input 
+                            type="number" 
+                            value={limitInput}
+                            onChange={(e) => setLimitInput(e.target.value)}
+                            className="w-20 px-2 py-1 text-sm border border-gray-300 rounded focus:ring-primary focus:border-primary"
+                        />
+                        <span className="text-sm text-gray-600"> / hari</span>
+                    </div>
+                </div>
+                <Button onClick={handleUpdateLimit} disabled={isUpdatingLimit} size="sm">
+                    {isUpdatingLimit ? '...' : <Save size={16} />}
+                </Button>
+            </div>
         </div>
       </div>
 
@@ -89,7 +132,7 @@ const Dashboard: React.FC = () => {
             <>
                 <StatCard title="Voucher Digital Diklaim" value={`${stats.claimedDigitalVouchers} / ${stats.totalDigitalVouchers}`} icon={<Users />} />
                 <StatCard title="Sudah Ditukar" value={vouchers.filter(v => v.type === 'DIGITAL' && v.isRedeemed).length} icon={<TicketCheck />} />
-                <StatCard title="Klaim Hari Ini" value={stats.claimsToday} icon={<CalendarClock />} />
+                <StatCard title="Klaim Hari Ini / Batas" value={`${stats.claimsToday} / ${dailyLimit}`} icon={<CalendarClock />} />
                 <StatCard title="Estimasi Reimbursement" value={`Rp ${(vouchers.filter(v=>v.type==='DIGITAL' && v.isRedeemed).reduce((sum, v) => sum + (v.discountAmount || 10000), 0)).toLocaleString('id-ID')}`} icon={<span className="font-bold">Rp</span>} />
             </>
         ) : (
