@@ -56,11 +56,11 @@ const supabaseApi = {
         if (!supabase) return { setting_value: 'true' };
         
         try {
-            // Menggunakan nama kolom 'setting_key' dan 'setting_value' sesuai database
+            // PERBAIKAN: Kembali menggunakan 'key' dan 'value' sesuai konfirmasi Supabase
             const { data, error } = await supabase
                 .from('app_settings')
-                .select('setting_value')
-                .eq('setting_key', key)
+                .select('value')
+                .eq('key', key)
                 .single();
                 
             const defaultValue = key === 'daily_limit' ? '1000' : 'true';
@@ -72,7 +72,8 @@ const supabaseApi = {
             if (error) throw error;
             if (!data) return { setting_value: defaultValue };
             
-            return { setting_value: data.setting_value };
+            // Map kolom 'value' DB ke 'setting_value' agar kompatibel dengan frontend
+            return { setting_value: data.value };
         } catch (e) {
             console.warn(`Error fetching setting ${key}`, e);
             return { setting_value: key === 'daily_limit' ? '1000' : 'true' };
@@ -83,11 +84,13 @@ const supabaseApi = {
         if (!supabase) return mockApi.updateSetting(key, value);
         
         try {
+            // PERBAIKAN: Menggunakan kolom 'key' dan 'value'
+            
             // 1. Cek apakah setting sudah ada (Select terlebih dahulu)
             const { data: existing, error: checkError } = await supabase
                 .from('app_settings')
-                .select('setting_key')
-                .eq('setting_key', key)
+                .select('key') // Gunakan 'key'
+                .eq('key', key)
                 .maybeSingle();
 
             if (checkError) throw checkError;
@@ -95,19 +98,19 @@ const supabaseApi = {
             let operationError;
 
             if (existing) {
-                // 2. Jika ada, lakukan UPDATE
+                // 2. Jika ada, lakukan UPDATE ke kolom 'value'
                 console.log(`Updating setting ${key} to ${value}...`);
                 const { error } = await supabase
                     .from('app_settings')
-                    .update({ setting_value: value })
-                    .eq('setting_key', key);
+                    .update({ value: value }) // Gunakan 'value'
+                    .eq('key', key);
                 operationError = error;
             } else {
-                // 3. Jika tidak ada, lakukan INSERT
+                // 3. Jika tidak ada, lakukan INSERT ke kolom 'key' & 'value'
                 console.log(`Inserting setting ${key} to ${value}...`);
                 const { error } = await supabase
                     .from('app_settings')
-                    .insert({ setting_key: key, setting_value: value });
+                    .insert({ key: key, value: value });
                 operationError = error;
             }
 
@@ -117,7 +120,6 @@ const supabaseApi = {
 
         } catch (err: any) {
             console.error("Update setting failed:", err);
-            // Kembalikan pesan error asli dari database agar user tahu penyebabnya (misal: RLS Policy)
             throw new Error(err.message || "Gagal update database.");
         }
     },
@@ -200,12 +202,12 @@ const supabaseApi = {
         try {
             const { data: limitData } = await supabase
                 .from('app_settings')
-                .select('setting_value')
-                .eq('setting_key', 'daily_limit')
+                .select('value') // Gunakan 'value'
+                .eq('key', 'daily_limit') // Gunakan 'key'
                 .maybeSingle();
 
-            if (limitData && limitData.setting_value) {
-                dailyLimit = parseInt(limitData.setting_value);
+            if (limitData && limitData.value) {
+                dailyLimit = parseInt(limitData.value);
             }
         } catch (err) {}
 
