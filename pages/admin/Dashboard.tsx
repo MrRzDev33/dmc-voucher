@@ -9,7 +9,7 @@ import SearchableSelect from '../../components/SearchableSelect';
 import UploadCodes from '../../components/UploadCodes';
 import TabButton from '../../components/TabButton';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Download, Users, TicketCheck, CalendarClock, Ticket, Smartphone, Warehouse, SlidersHorizontal, Save, Loader2 } from '../../components/icons/Icons';
+import { Download, Users, TicketCheck, CalendarClock, Ticket, Smartphone, Warehouse, SlidersHorizontal, Save, Loader2, Search } from '../../components/icons/Icons';
 
 const VOUCHERS_PER_PAGE = 10;
 
@@ -29,34 +29,67 @@ const Dashboard: React.FC = () => {
       setLimitInput(String(dailyLimit));
   }, [dailyLimit]);
 
+  // HELPER: Normalisasi teks untuk perbandingan yang akurat
+  // Mengubah ke huruf kecil, menghapus spasi di awal/akhir, dan mengubah spasi ganda menjadi spasi tunggal
+  const normalizeText = (text: string | undefined) => {
+      if (!text) return '';
+      return text.toLowerCase().replace(/\s+/g, ' ').trim();
+  };
+
+  // 1. Filter Vouchers berdasarkan Tab dan Outlet dengan Normalisasi
   const filteredVouchers = useMemo(() => {
     return vouchers
       .filter(v => v.type === activeTab)
-      .filter(v => filterOutlet === 'all' || v.outlet === filterOutlet || (v.redeemedOutlet === filterOutlet))
+      .filter(v => {
+          if (filterOutlet === 'all') return true;
+          
+          const vOutlet = normalizeText(v.outlet);
+          const vRedeemed = normalizeText(v.redeemedOutlet);
+          const target = normalizeText(filterOutlet);
+          
+          // Gunakan includes untuk fleksibilitas jika nama di DB tidak 100% sama
+          return vOutlet === target || vRedeemed === target || vOutlet.includes(target);
+      })
       .sort((a, b) => new Date(b.claimDate).getTime() - new Date(a.claimDate).getTime());
   }, [vouchers, filterOutlet, activeTab]);
 
-  const paginatedVouchers = useMemo(() => {
-    const startIndex = (currentPage - 1) * VOUCHERS_PER_PAGE;
-    return filteredVouchers.slice(startIndex, startIndex + VOUCHERS_PER_PAGE);
-  }, [filteredVouchers, currentPage]);
+  // 2. Hitung Data Grafik
+  const chartData = useMemo(() => {
+      const statsMap = new Map<string, number>();
 
-  const totalPages = Math.ceil(filteredVouchers.length / VOUCHERS_PER_PAGE);
+      filteredVouchers.forEach(v => {
+          const dateStr = v.claimDate.split('T')[0];
+          statsMap.set(dateStr, (statsMap.get(dateStr) || 0) + 1);
+      });
+
+      return Array.from(statsMap.entries())
+          .map(([date, count]) => ({ date, count }))
+          .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+          .slice(-30);
+  }, [filteredVouchers]);
+
+  // PAGINATION LOGIC
+  const totalPages = Math.max(1, Math.ceil(filteredVouchers.length / VOUCHERS_PER_PAGE));
+
+  const paginatedVouchers = useMemo(() => {
+    const safePage = Math.min(currentPage, totalPages);
+    const startIndex = (safePage - 1) * VOUCHERS_PER_PAGE;
+    return filteredVouchers.slice(startIndex, startIndex + VOUCHERS_PER_PAGE);
+  }, [filteredVouchers, currentPage, totalPages]);
+
+  useEffect(() => {
+      setCurrentPage(1);
+  }, [filterOutlet, activeTab]);
 
   const handleExport = async () => {
     setIsExporting(true);
     try {
-        // Karena `vouchers` sekarang dijamin lengkap oleh logic pagination di api.ts,
-        // kita bisa langsung export dari `filteredVouchers` yang ada di state.
-        // Jika filter outlet 'all', maka semua data ter-download.
         const dataToExport = filteredVouchers;
-        
         if (dataToExport.length === 0) {
-            alert("Tidak ada data untuk diekspor.");
+            alert("Tidak ada data untuk diekspor. Coba ubah filter outlet ke 'Semua Outlet' jika data tidak muncul.");
             return;
         }
-
-        exportToCSV(dataToExport, `${activeTab.toLowerCase()}-vouchers-${filterOutlet === 'all' ? 'AllOutlets' : filterOutlet}-${new Date().toISOString().split('T')[0]}`);
+        exportToCSV(dataToExport, `${activeTab.toLowerCase()}-vouchers-${filterOutlet === 'all' ? 'AllOutlets' : filterOutlet.substring(0, 20)}-${new Date().toISOString().split('T')[0]}`);
     } catch (e) {
         console.error("Export failed", e);
         alert("Gagal melakukan ekspor data.");
@@ -82,10 +115,18 @@ const Dashboard: React.FC = () => {
       setIsUpdatingLimit(false);
   }
 
+  const paginationText = useMemo(() => {
+      if (filteredVouchers.length === 0) return "Menampilkan 0 data";
+      const start = (currentPage - 1) * VOUCHERS_PER_PAGE + 1;
+      const end = Math.min(currentPage * VOUCHERS_PER_PAGE, filteredVouchers.length);
+      return `Menampilkan ${start} sampai ${end} dari ${filteredVouchers.length} data`;
+  }, [filteredVouchers.length, currentPage]);
+
+
   if (loading) return (
       <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
           <Loader2 className="animate-spin text-primary" size={48} />
-          <p className="text-gray-500">Memuat semua data voucher, mohon tunggu...</p>
+          <p className="text-gray-500">Memuat semua data voucher dari server...</p>
       </div>
   );
 
@@ -156,7 +197,7 @@ const Dashboard: React.FC = () => {
                 <StatCard title="Voucher Digital Diklaim" value={`${stats.claimedDigitalVouchers} / ${stats.totalDigitalVouchers}`} icon={<Users />} />
                 <StatCard title="Sudah Ditukar" value={vouchers.filter(v => v.type === 'DIGITAL' && v.isRedeemed).length} icon={<TicketCheck />} />
                 
-                {/* PERBAIKAN: Menggunakan stats.todayClaimedDigital (Murni Digital) agar sesuai dengan logika Limit */}
+                {/* Menggunakan stats.todayClaimedDigital (Murni Digital) */}
                 <StatCard title="Klaim Hari Ini / Batas" value={`${stats.todayClaimedDigital} / ${dailyLimit}`} icon={<CalendarClock />} />
                 
                 <StatCard title="Estimasi Reimbursement" value={`Rp ${(vouchers.filter(v=>v.type==='DIGITAL' && v.isRedeemed).reduce((sum, v) => sum + (v.discountAmount || 10000), 0)).toLocaleString('id-ID')}`} icon={<span className="font-bold">Rp</span>} />
@@ -175,38 +216,67 @@ const Dashboard: React.FC = () => {
       <UploadCodes voucherType={activeTab} onUpload={loadCodes} />
       
       {/* Charts */}
-      {activeTab === 'DIGITAL' && (
-         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             <div className="bg-white p-6 rounded-xl shadow-lg">
-                <h3 className="text-lg font-semibold mb-4">Klaim per Outlet</h3>
+                <h3 className="text-lg font-semibold mb-4">
+                    {activeTab === 'DIGITAL' ? 'Distribusi Klaim per Outlet' : 'Distribusi Fisik per Outlet'}
+                </h3>
                 <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={OUTLETS.map(o => ({name: o, claims: stats.claimsByOutlet?.[o] || 0}))}>
-                        <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={false} /><YAxis /><Tooltip /><Legend /><Bar dataKey="claims" name="Jumlah Klaim" fill="#ea580c" />
+                    {/* Menggunakan normalizeText juga di sini untuk grouping yang akurat */}
+                    <BarChart data={OUTLETS.map(o => ({
+                        name: o, 
+                        claims: filteredVouchers.filter(v => normalizeText(v.outlet) === normalizeText(o) || normalizeText(v.outlet).includes(normalizeText(o))).length 
+                    })).filter(item => item.claims > 0).sort((a,b) => b.claims - a.claims)}>
+                        <CartesianGrid strokeDasharray="3 3" /><XAxis dataKey="name" tick={false} /><YAxis /><Tooltip /><Legend />
+                        <Bar dataKey="claims" name={activeTab === 'DIGITAL' ? "Jumlah Klaim" : "Jumlah Input"} fill={activeTab === 'DIGITAL' ? "#ea580c" : "#0284c7"} />
                     </BarChart>
                 </ResponsiveContainer>
+                <p className="text-xs text-gray-400 mt-2 text-center">*Menampilkan semua outlet yang memiliki aktivitas (Geser kursor untuk melihat nama outlet)</p>
             </div>
+            
             <div className="bg-white p-6 rounded-xl shadow-lg">
-                <h3 className="text-lg font-semibold mb-4">Tren Klaim Harian</h3>
+                <h3 className="text-lg font-semibold mb-4">
+                    {activeTab === 'DIGITAL' ? 'Tren Klaim Digital Harian' : 'Tren Input Fisik Harian'}
+                </h3>
                 <ResponsiveContainer width="100%" height={300}>
-                    <BarChart data={stats.claimsPerDay.slice(-30)}>
+                    <BarChart data={chartData}>
                         <CartesianGrid strokeDasharray="3 3" />
-                        <XAxis dataKey="date" tickFormatter={(tick) => new Date(tick).toLocaleDateString('id-ID', {day:'2-digit', month:'short'})} />
-                        <YAxis /><Tooltip /><Legend /><Bar dataKey="count" name="Klaim" fill="#f97316" />
+                        <XAxis 
+                            dataKey="date" 
+                            tickFormatter={(tick) => new Date(tick).toLocaleDateString('id-ID', {day:'2-digit', month:'short'})} 
+                            fontSize={12}
+                        />
+                        <YAxis allowDecimals={false} />
+                        <Tooltip labelFormatter={(label) => formatDate(label)} />
+                        <Legend />
+                        <Bar dataKey="count" name={activeTab === 'DIGITAL' ? "Klaim" : "Input"} fill={activeTab === 'DIGITAL' ? "#f97316" : "#0ea5e9"} />
                     </BarChart>
                 </ResponsiveContainer>
             </div>
         </div>
-      )}
 
       {/* Vouchers Table */}
       <div className="bg-white p-6 rounded-xl shadow-lg">
         <div className="flex flex-col sm:flex-row justify-between items-center mb-4 gap-4">
-          <h2 className="text-xl font-bold">Data Voucher {activeTab === 'DIGITAL' ? 'Digital' : 'Fisik'}</h2>
+          <div className="flex flex-col">
+              <h2 className="text-xl font-bold flex items-center gap-2">
+                  Data Voucher {activeTab === 'DIGITAL' ? 'Digital' : 'Fisik'}
+              </h2>
+              <span className="text-sm text-gray-500">
+                  Total Data {activeTab === 'DIGITAL' ? 'Digital' : 'Fisik'} di Server: 
+                  <span className="font-bold text-gray-800 ml-1">
+                      {activeTab === 'DIGITAL' ? vouchers.filter(v => v.type === 'DIGITAL').length : vouchers.filter(v => v.type === 'PHYSICAL').length}
+                  </span>
+                  <span className="mx-2">|</span>
+                  Tertampil: <span className="font-bold text-primary">{filteredVouchers.length}</span>
+              </span>
+          </div>
+
           <div className="flex items-center gap-4 w-full sm:w-auto">
              <div className="w-full sm:w-56">
                 <SearchableSelect
                     id="outlet-filter" label="" options={['Semua Outlet', ...OUTLETS]} value={filterOutlet === 'all' ? 'Semua Outlet' : filterOutlet}
-                    onChange={(value) => { setFilterOutlet(value === 'Semua Outlet' ? 'all' : value as Outlet); setCurrentPage(1); }}
+                    onChange={(value) => setFilterOutlet(value === 'Semua Outlet' ? 'all' : value as Outlet)}
                     placeholder="Filter berdasarkan outlet"
                 />
              </div>
@@ -232,7 +302,6 @@ const Dashboard: React.FC = () => {
                 {/* Kolom Nominal Potongan */}
                 {activeTab === 'DIGITAL' && <th scope="col" className="px-6 py-3">Nominal</th>}
                 
-                {/* Conditional Column Headers for Outlet */}
                 {activeTab === 'DIGITAL' ? (
                   <>
                     <th scope="col" className="px-6 py-3">Pengambilan Voucher</th>
@@ -247,44 +316,55 @@ const Dashboard: React.FC = () => {
               </tr>
             </thead>
             <tbody>
-              {paginatedVouchers.map((v: Voucher) => (
-                <tr key={v.id} className="bg-white border-b border-gray-200 hover:bg-gray-50">
-                  {activeTab === 'DIGITAL' && <td className="px-6 py-4 font-medium text-gray-800">{v.fullName || '-'}</td>}
-                  <td className="px-6 py-4">{v.whatsappNumber}</td>
-                  {activeTab === 'PHYSICAL' && <td className="px-6 py-4">{v.gender || '-'}</td>}
-                  
-                   {activeTab === 'DIGITAL' && <td className="px-6 py-4">{v.birthYear || '-'}</td>}
-
-                  <td className="px-6 py-4 font-mono">{v.voucherCode}</td>
-                  
-                  {/* Isi Kolom Nominal */}
-                  {activeTab === 'DIGITAL' && (
-                    <td className="px-6 py-4 font-semibold text-primary">
-                        {formatCurrency(v.discountAmount || 10000)}
-                    </td>
-                  )}
-                  
-                  {activeTab === 'DIGITAL' ? (
-                    <>
-                      <td className="px-6 py-4">{v.outlet}</td>
-                      <td className="px-6 py-4 text-gray-600">
-                          {v.redeemedOutlet ? (
-                              v.redeemedOutlet === v.outlet ? v.redeemedOutlet : <span className="text-orange-600 font-medium" title="Berbeda dengan rencana pengambilan">{v.redeemedOutlet}</span>
-                          ) : '-'}
+              {filteredVouchers.length === 0 ? (
+                  <tr>
+                      <td colSpan={activeTab === 'DIGITAL' ? 9 : 6} className="px-6 py-8 text-center text-gray-500 bg-gray-50 rounded-lg border-b border-gray-200">
+                          <div className="flex flex-col items-center justify-center">
+                              <Search size={32} className="text-gray-300 mb-2" />
+                              <p className="font-medium">Tidak ada data ditemukan untuk outlet ini.</p>
+                              <p className="text-xs text-gray-400 mt-1">Coba pilih "Semua Outlet" untuk memastikan data ada di server.</p>
+                          </div>
                       </td>
-                    </>
-                  ) : (
-                    <td className="px-6 py-4">{v.outlet}</td>
-                  )}
-
-                  <td className="px-6 py-4">{formatDate(v.claimDate)}</td>
-                  <td className="px-6 py-4">
-                    <span className={`px-2 py-1 text-xs font-medium rounded-full ${v.isRedeemed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
-                      {v.isRedeemed ? 'Sudah Ditukar' : 'Belum Ditukar'}
-                    </span>
-                  </td>
-                </tr>
-              ))}
+                  </tr>
+              ) : (
+                  paginatedVouchers.map((v: Voucher) => (
+                    <tr key={v.id} className="bg-white border-b border-gray-200 hover:bg-gray-50">
+                      {activeTab === 'DIGITAL' && <td className="px-6 py-4 font-medium text-gray-800">{v.fullName || '-'}</td>}
+                      <td className="px-6 py-4">{v.whatsappNumber}</td>
+                      {activeTab === 'PHYSICAL' && <td className="px-6 py-4">{v.gender || '-'}</td>}
+                      
+                       {activeTab === 'DIGITAL' && <td className="px-6 py-4">{v.birthYear || '-'}</td>}
+    
+                      <td className="px-6 py-4 font-mono">{v.voucherCode}</td>
+                      
+                      {activeTab === 'DIGITAL' && (
+                        <td className="px-6 py-4 font-semibold text-primary">
+                            {formatCurrency(v.discountAmount || 10000)}
+                        </td>
+                      )}
+                      
+                      {activeTab === 'DIGITAL' ? (
+                        <>
+                          <td className="px-6 py-4">{v.outlet}</td>
+                          <td className="px-6 py-4 text-gray-600">
+                              {v.redeemedOutlet ? (
+                                  v.redeemedOutlet === v.outlet ? v.redeemedOutlet : <span className="text-orange-600 font-medium" title="Berbeda dengan rencana pengambilan">{v.redeemedOutlet}</span>
+                              ) : '-'}
+                          </td>
+                        </>
+                      ) : (
+                        <td className="px-6 py-4">{v.outlet}</td>
+                      )}
+    
+                      <td className="px-6 py-4">{formatDate(v.claimDate)}</td>
+                      <td className="px-6 py-4">
+                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${v.isRedeemed ? 'bg-green-100 text-green-800' : 'bg-yellow-100 text-yellow-800'}`}>
+                          {v.isRedeemed ? 'Sudah Ditukar' : 'Belum Ditukar'}
+                        </span>
+                      </td>
+                    </tr>
+                  ))
+              )}
             </tbody>
           </table>
         </div>
@@ -292,11 +372,23 @@ const Dashboard: React.FC = () => {
         {/* Pagination */}
         <div className="flex justify-between items-center mt-4">
             <span className="text-sm text-gray-700">
-                Menampilkan {Math.min((currentPage - 1) * VOUCHERS_PER_PAGE + 1, filteredVouchers.length)} sampai {Math.min(currentPage * VOUCHERS_PER_PAGE, filteredVouchers.length)} dari {filteredVouchers.length} data
+                {paginationText}
             </span>
             <div className="flex gap-2">
-                <Button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} size="sm">Sebelumnya</Button>
-                <Button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages} size="sm">Berikutnya</Button>
+                <Button 
+                    onClick={() => setCurrentPage(p => Math.max(1, p - 1))} 
+                    disabled={currentPage === 1 || filteredVouchers.length === 0} 
+                    size="sm"
+                >
+                    Sebelumnya
+                </Button>
+                <Button 
+                    onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} 
+                    disabled={currentPage === totalPages || filteredVouchers.length === 0} 
+                    size="sm"
+                >
+                    Berikutnya
+                </Button>
             </div>
         </div>
 

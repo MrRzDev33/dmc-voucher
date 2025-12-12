@@ -43,11 +43,8 @@ const supabaseApi = {
             return null;
 
         } catch (err: any) {
-            if (err.message === 'Failed to fetch' || err.name === 'TypeError') {
-                 console.warn("Supabase login failed (Network Error), switching to Offline Mode.", err);
-                 return mockApi.login(username, password);
-            }
             console.error("Database Login Error:", err);
+            // Jangan fallback ke mock untuk login agar keamanan terjaga
             return null;
         }
     },
@@ -56,7 +53,6 @@ const supabaseApi = {
         if (!supabase) return { setting_value: 'true' };
         
         try {
-            // PERBAIKAN: Kembali menggunakan 'key' dan 'value' sesuai konfirmasi Supabase
             const { data, error } = await supabase
                 .from('app_settings')
                 .select('value')
@@ -72,7 +68,6 @@ const supabaseApi = {
             if (error) throw error;
             if (!data) return { setting_value: defaultValue };
             
-            // Map kolom 'value' DB ke 'setting_value' agar kompatibel dengan frontend
             return { setting_value: data.value };
         } catch (e) {
             console.warn(`Error fetching setting ${key}`, e);
@@ -84,12 +79,9 @@ const supabaseApi = {
         if (!supabase) return mockApi.updateSetting(key, value);
         
         try {
-            // PERBAIKAN: Menggunakan kolom 'key' dan 'value'
-            
-            // 1. Cek apakah setting sudah ada (Select terlebih dahulu)
             const { data: existing, error: checkError } = await supabase
                 .from('app_settings')
-                .select('key') // Gunakan 'key'
+                .select('key')
                 .eq('key', key)
                 .maybeSingle();
 
@@ -98,16 +90,12 @@ const supabaseApi = {
             let operationError;
 
             if (existing) {
-                // 2. Jika ada, lakukan UPDATE ke kolom 'value'
-                console.log(`Updating setting ${key} to ${value}...`);
                 const { error } = await supabase
                     .from('app_settings')
-                    .update({ value: value }) // Gunakan 'value'
+                    .update({ value: value })
                     .eq('key', key);
                 operationError = error;
             } else {
-                // 3. Jika tidak ada, lakukan INSERT ke kolom 'key' & 'value'
-                console.log(`Inserting setting ${key} to ${value}...`);
                 const { error } = await supabase
                     .from('app_settings')
                     .insert({ key: key, value: value });
@@ -115,7 +103,6 @@ const supabaseApi = {
             }
 
             if (operationError) throw operationError;
-            
             return { success: true };
 
         } catch (err: any) {
@@ -133,6 +120,7 @@ const supabaseApi = {
         let more = true;
 
         try {
+            // Kita loop untuk mengambil semua data jika lebih dari 1000
             while (more) {
                 const { data, error } = await supabase
                     .from('vouchers')
@@ -152,22 +140,21 @@ const supabaseApi = {
                 } else {
                     more = false;
                 }
+                
+                // Safety break
                 if (from > 50000) more = false; 
             }
             return allVouchers;
         } catch (err: any) {
-            console.warn("Get vouchers failed, checking connection...", err);
-            if (err.message === 'Failed to fetch') return mockApi.getVouchers();
-            throw err;
+            console.error("CRITICAL: Failed to fetch vouchers from Supabase.", err);
+            // HAPUS FALLBACK KE MOCK. Biarkan error muncul agar user sadar koneksi bermasalah.
+            throw new Error("Gagal mengambil data dari Database. Periksa koneksi internet Anda.");
         }
     },
 
     async getPoolStats(type: VoucherType): Promise<{ count: number }> {
         if (!supabase) return mockApi.getPoolStats(type);
         try {
-            // PERBAIKAN: Menghapus filter .eq('is_used', false)
-            // Tujuannya agar Dashboard menampilkan TOTAL KAPASITAS VOUCHER (Total Pool),
-            // bukan hanya sisa stok. Ini memperbaiki tampilan "0" jika user mengharapkan total.
             const { count, error } = await supabase
                 .from('voucher_pool')
                 .select('*', { count: 'exact', head: true })
@@ -176,6 +163,8 @@ const supabaseApi = {
             if (error) throw error;
             return { count: count || 0 };
         } catch (error) {
+            console.error("Error getting pool stats:", error);
+            // Return 0 is safer than mock data here
             return { count: 0 };
         }
     },
@@ -186,14 +175,9 @@ const supabaseApi = {
             const todayStr = new Date().toISOString().split('T')[0];
 
             const [claimedDig, redeemedDig, redeemedPhys, todayDig] = await Promise.all([
-                // Total Digital All Time
                 supabase.from('vouchers').select('*', { count: 'exact', head: true }).eq('type', 'DIGITAL'),
-                // Total Redeemed Digital
                 supabase.from('vouchers').select('*', { count: 'exact', head: true }).eq('type', 'DIGITAL').eq('is_redeemed', true),
-                // Total Redeemed Physical
                 supabase.from('vouchers').select('*', { count: 'exact', head: true }).eq('type', 'PHYSICAL').eq('is_redeemed', true),
-                
-                // BARU: Total Digital HARI INI (Strict untuk Limit)
                 supabase.from('vouchers')
                     .select('*', { count: 'exact', head: true })
                     .eq('type', 'DIGITAL')
@@ -208,16 +192,16 @@ const supabaseApi = {
                 todayClaimedDigital: todayDig.count || 0
             };
         } catch (err) {
-            return { claimedDigital: 0, redeemedDigital: 0, redeemedPhysical: 0, todayClaimedDigital: 0 };
+            console.error("Error fetching dashboard stats:", err);
+            // Jangan return object kosong/nol jika error, lempar error agar UI menampilkan status loading/gagal
+            throw new Error("Gagal memuat statistik dashboard.");
         }
     },
 
     async claimVoucher(data: any): Promise<Voucher> {
         if (!supabase) return mockApi.claimVoucher(data);
 
-        // ---------------------------------------------------------
-        // 1. AMBIL SETTING LIMIT HARIAN
-        // ---------------------------------------------------------
+        // 1. LIMIT HARIAN
         let dailyLimit = 1000;
         try {
             const { data: limitData } = await supabase
@@ -232,27 +216,22 @@ const supabaseApi = {
         } catch (err) {}
 
         try {
-            // ---------------------------------------------------------
-            // 2. CEK JUMLAH KLAIM HARI INI (STRICT)
-            // ---------------------------------------------------------
+            // 2. CEK KUOTA HARI INI
             const todayStr = new Date().toISOString().split('T')[0];
             const { count: claimsToday, error: countError } = await supabase
                 .from('vouchers')
                 .select('*', { count: 'exact', head: true })
                 .gte('claim_date', `${todayStr}T00:00:00`)
                 .lte('claim_date', `${todayStr}T23:59:59`)
-                .eq('type', 'DIGITAL'); // Pastikan hanya DIGITAL
+                .eq('type', 'DIGITAL');
 
             if (countError) throw countError;
 
-            // PENTING: Jika klaim hari ini SUDAH SAMA DENGAN atau LEBIH dari limit, tolak.
             if (typeof claimsToday === 'number' && claimsToday >= dailyLimit) {
                 throw new Error(`Mohon maaf, kuota voucher harian (${dailyLimit}) untuk hari ini sudah habis.`);
             }
 
-            // ---------------------------------------------------------
-            // 3. CEK DUPLIKASI USER (WHATSAPP)
-            // ---------------------------------------------------------
+            // 3. CEK DUPLIKASI USER
             const { data: existing, error: dupError } = await supabase
                 .from('vouchers')
                 .select('id')
@@ -262,9 +241,7 @@ const supabaseApi = {
             if (dupError) throw dupError;
             if (existing) throw new Error("Nomor WhatsApp ini sudah pernah mengklaim voucher.");
 
-            // ---------------------------------------------------------
-            // 4. AMBIL KODE DARI POOL (STRICT - NO GENERATOR)
-            // ---------------------------------------------------------
+            // 4. AMBIL KODE DARI POOL
             let voucherCode = '';
             let discount = 10000;
             let poolId = null;
@@ -272,7 +249,7 @@ const supabaseApi = {
             const { data: codeData, error: poolError } = await supabase
                 .from('voucher_pool')
                 .select('*')
-                .eq('is_used', false) // Hanya ambil yang belum terpakai (Available)
+                .eq('is_used', false)
                 .eq('type', 'DIGITAL')
                 .limit(1)
                 .maybeSingle();
@@ -284,24 +261,17 @@ const supabaseApi = {
                 discount = codeData.discount_amount;
                 poolId = codeData.id;
 
-                // Tandai kode sebagai terpakai
                 const { error: updatePoolError } = await supabase
                     .from('voucher_pool')
                     .update({ is_used: true })
                     .eq('id', poolId);
                 
-                if (updatePoolError) {
-                    console.error("Gagal update status pool", updatePoolError);
-                    throw new Error("Terjadi kesalahan saat mengambil kode voucher. Silakan coba lagi.");
-                }
+                if (updatePoolError) throw new Error("Gagal mengupdate pool.");
             } else {
-                // !!! KRUSIAL: JANGAN MEMBUAT KODE BARU JIKA STOK HABIS !!!
                 throw new Error("Mohon maaf, stok voucher Digital saat ini sudah habis.");
             }
 
-            // ---------------------------------------------------------
-            // 5. SIMPAN DATA KLAIM
-            // ---------------------------------------------------------
+            // 5. INSERT DATA
             const { data: newVoucher, error: insertError } = await supabase
                 .from('vouchers')
                 .insert({
@@ -319,22 +289,13 @@ const supabaseApi = {
                 .single();
 
             if (insertError) {
-                // Jika insert gagal, kita coba kembalikan status pool (opsional/best effort)
-                if (poolId) {
-                    await supabase.from('voucher_pool').update({ is_used: false }).eq('id', poolId);
-                }
+                if (poolId) await supabase.from('voucher_pool').update({ is_used: false }).eq('id', poolId);
                 throw insertError;
             }
 
             return newVoucher;
 
         } catch (err: any) {
-            // HANYA fallback ke mock jika benar-benar mati koneksi internetnya (Network Error)
-            if (err.message === 'Failed to fetch' || err.message === 'NetworkError') {
-                console.warn("Network Error, entering offline mode (MOCK)");
-                return mockApi.claimVoucher(data);
-            }
-            // Lempar error asli (Limit Habis / Stok Habis)
             throw new Error(err.message || "Gagal klaim voucher.");
         }
     },
@@ -382,7 +343,6 @@ const supabaseApi = {
     async recordPhysical(data: any): Promise<Voucher> {
         if (!supabase) return mockApi.recordPhysical(data);
         try {
-            // 1. CEK APAKAH KODE FISIK SUDAH ADA?
             const { data: existing, error: checkError } = await supabase
                 .from('vouchers')
                 .select('id')
@@ -391,12 +351,10 @@ const supabaseApi = {
 
             if (checkError) throw checkError;
             
-            // Jika sudah ada, tolak input
             if (existing) {
                 throw new Error(`Gagal: Kode voucher fisik '${data.voucher_code}' sudah tercatat/digunakan sebelumnya.`);
             }
 
-            // 2. JIKA BELUM, LANJUT INSERT
             const { data: newVoucher, error } = await supabase
                 .from('vouchers')
                 .insert({

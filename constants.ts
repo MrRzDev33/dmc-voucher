@@ -18,7 +18,7 @@ export const OUTLETS: Outlet[] = [
 'Bandung - DMC Kamasan',
 'Bandung - DMC Majalaya',
 'Bandung - DMC Pinggir Wangi',
-'Bandung - DMC Pusat Cihanjuang',
+'Cimahi - DMC Pusat Cihanjuang',
 'Bandung - DMC Rencong',
 'Bandung - DMC Sarijadi',
 'Bandung - DMC Soreang',

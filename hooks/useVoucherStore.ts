@@ -72,8 +72,7 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
           const mappedVouchers = (voucherData || []).map(mapDbToVoucher);
           setVouchers(mappedVouchers);
 
-          // 4. Ambil Statistik Dashboard (Count Exact) - PENTING AGAR DATA TIDAK BERKURANG
-          // Mengembalikan { claimedDigital, redeemedDigital, redeemedPhysical, todayClaimedDigital }
+          // 4. Ambil Statistik Dashboard
           const dashboardStats = await api.getDashboardStats();
 
           // 5. Ambil Statistik Pool (Stock)
@@ -84,7 +83,7 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
               claimedDigital: dashboardStats.claimedDigital,
               redeemedDigital: dashboardStats.redeemedDigital,
               redeemedPhysical: dashboardStats.redeemedPhysical,
-              todayClaimedDigital: dashboardStats.todayClaimedDigital || 0, // Store specific metric
+              todayClaimedDigital: dashboardStats.todayClaimedDigital || 0,
               poolDigital: digitalPool.count || 0,
               poolPhysical: physicalPool.count || 0
           });
@@ -93,7 +92,10 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
 
       } catch (err: any) {
           console.error("Error fetching data:", err);
-          if (!isPolling) setError(err.message || "Gagal memuat data dari server.");
+          // Tampilkan pesan error hanya jika bukan polling, agar user tahu ada masalah
+          if (!isPolling) {
+              setError(err.message || "Gagal memuat data dari server. Periksa koneksi.");
+          }
       } finally {
           if (!isPolling) setLoading(false);
       }
@@ -101,14 +103,14 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
 
   useEffect(() => {
     fetchData();
-    // Polling setiap 10 detik
     const intervalId = setInterval(() => {
         fetchData(true);
-    }, 10000);
+    }, 15000); // Poll every 15s
     return () => clearInterval(intervalId);
   }, [fetchData]);
 
   useEffect(() => {
+    // Logic statistik lokal tetap jalan, namun Dashboard diutamakan memakai serverStats
     if (!loading) {
         const today = getTodayDateString();
         const claimsByOutlet: { [key in Outlet]?: number } = {};
@@ -131,14 +133,10 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
           claimsByOutlet,
           claimsPerDay,
           
-          // Data Statistik Utama dari Server Count (Fix issue data berkurang)
           totalDigitalVouchers: serverStats.poolDigital, 
           claimedDigitalVouchers: serverStats.claimedDigital, 
-          
           totalPhysicalVouchers: serverStats.poolPhysical,
           redeemedPhysicalVouchers: serverStats.redeemedPhysical, 
-          
-          // Use specific server statistic for the daily limit
           todayClaimedDigital: serverStats.todayClaimedDigital
         });
     }
@@ -159,18 +157,12 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
 
   const toggleClaimStatus = async (status: boolean) => {
       try {
-          // Kirim ke API
           await api.updateSetting('claim_enabled', String(status));
-          
-          // Jika sukses, update state lokal
           setIsClaimEnabled(status);
-          
-          // Reload data untuk memastikan sinkron
           setTimeout(() => fetchData(true), 500);
       } catch (err: any) {
           console.error("Gagal mengubah status klaim:", err);
-          alert(`Gagal menyimpan status ke database: ${err.message}. Pastikan koneksi lancar.`);
-          // Jangan ubah state lokal jika gagal
+          alert(`Gagal menyimpan status: ${err.message}`);
       }
   }
 
@@ -188,12 +180,9 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
 
   const claimVoucher = async (data: Omit<Voucher, 'id' | 'voucherCode' | 'claimDate' | 'isRedeemed' | 'type' | 'redeemedDate' | 'redeemedOutlet' | 'discountAmount'>): Promise<Voucher> => {
     setError(null);
-
-    // Cek State Lokal
     if (!isClaimEnabled) {
         throw new Error("Mohon maaf, periode klaim voucher belum dibuka atau sudah ditutup.");
     }
-
     try {
         const payload = {
             full_name: data.fullName,
@@ -201,20 +190,15 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
             whatsapp_number: data.whatsappNumber,
             outlet: data.outlet
         };
-
         const result = await api.claimVoucher(payload);
         const mappedVoucher = mapDbToVoucher(result);
         setVouchers(prev => [mappedVoucher, ...prev]);
-        
-        // Optimistic Update
         setServerStats(prev => ({
             ...prev,
             claimedDigital: prev.claimedDigital + 1,
             todayClaimedDigital: prev.todayClaimedDigital + 1
         }));
-        
         return mappedVoucher;
-
     } catch (err: any) {
         setError(err.message);
         throw err;
@@ -227,12 +211,10 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
         const result = await api.redeemVoucher(voucherIdentifier, redeemedOutlet);
         const mapped = mapDbToVoucher(result);
         setVouchers(prev => prev.map(v => v.id === mapped.id ? mapped : v));
-        
         setServerStats(prev => ({
             ...prev,
             redeemedDigital: prev.redeemedDigital + 1
         }));
-
         return mapped;
     } catch (err: any) {
         setError(err.message);
@@ -249,18 +231,14 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
             outlet: data.outlet,
             voucher_code: data.voucherCode
         };
-
         const result = await api.recordPhysical(payload);
         const mapped = mapDbToVoucher(result);
         setVouchers(prev => [mapped, ...prev]);
-        
         setServerStats(prev => ({
             ...prev,
             redeemedPhysical: prev.redeemedPhysical + 1
         }));
-
         return mapped;
-
       } catch (err: any) {
           setError(err.message);
           throw err;
