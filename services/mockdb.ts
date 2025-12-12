@@ -1,4 +1,3 @@
-
 import { Voucher, VoucherType, User, Role } from '../types';
 import { generateVoucherCode } from './util';
 
@@ -56,6 +55,14 @@ const mockApi = {
     async getPoolStats(type: VoucherType): Promise<{ count: number }> {
         await delay(300);
         return { count: 50 }; // Dummy stock
+    },
+
+    async getDashboardStats(): Promise<{ claimedDigital: number, redeemedDigital: number, redeemedPhysical: number }> {
+        await delay(300);
+        const claimedDigital = MOCK_VOUCHERS.filter(v => v.type === 'DIGITAL').length;
+        const redeemedDigital = MOCK_VOUCHERS.filter(v => v.type === 'DIGITAL' && v.is_redeemed).length;
+        const redeemedPhysical = MOCK_VOUCHERS.filter(v => v.type === 'PHYSICAL' && v.is_redeemed).length;
+        return { claimedDigital, redeemedDigital, redeemedPhysical };
     },
 
     async claimVoucher(data: any): Promise<Voucher> {

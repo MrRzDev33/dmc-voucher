@@ -1,4 +1,3 @@
-
 import { useState, useEffect, useCallback } from 'react';
 import { Voucher, Outlet, Stats, VoucherType, UseVoucherStoreReturn } from '../types';
 import { getTodayDateString } from '../services/util';
@@ -11,9 +10,13 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
   const [isClaimEnabled, setIsClaimEnabled] = useState<boolean>(true); 
   const [dailyLimit, setDailyLimit] = useState<number>(1000); // Default local sebelum fetch
   
-  const [poolStats, setPoolStats] = useState({
-    digitalTotal: 0,
-    physicalTotal: 0
+  // State untuk menyimpan statistik REAL dari server (bukan dari array vouchers)
+  const [serverStats, setServerStats] = useState({
+    claimedDigital: 0,
+    redeemedDigital: 0,
+    redeemedPhysical: 0,
+    poolDigital: 0,
+    poolPhysical: 0
   });
 
   const [stats, setStats] = useState<Stats>({
@@ -60,20 +63,27 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
               setDailyLimit(parseInt(limitData.setting_value) || 1000);
           }
 
-          // 3. Ambil Data Voucher
+          // 3. Ambil Data Voucher (Tabel)
           const voucherData = await api.getVouchers();
           const mappedVouchers = (voucherData || []).map(mapDbToVoucher);
           setVouchers(mappedVouchers);
 
-          // 4. Ambil Statistik Pool (Hanya jika bukan polling agar ringan)
-          if (!isPolling) {
-              const digital = await api.getPoolStats('DIGITAL');
-              const physical = await api.getPoolStats('PHYSICAL');
-              setPoolStats({
-                  digitalTotal: digital.count || 0,
-                  physicalTotal: physical.count || 0
-              });
-          }
+          // 4. Ambil Statistik Dashboard (Count Exact) - BARU
+          // Ini memastikan angka di dashboard akurat walau tabel belum meload semua data
+          const dashboardStats = await api.getDashboardStats();
+
+          // 5. Ambil Statistik Pool (Stock)
+          // Polling juga update ini agar jika ada upload stock baru, langsung muncul
+          const digitalPool = await api.getPoolStats('DIGITAL');
+          const physicalPool = await api.getPoolStats('PHYSICAL');
+              
+          setServerStats({
+              claimedDigital: dashboardStats.claimedDigital,
+              redeemedDigital: dashboardStats.redeemedDigital,
+              redeemedPhysical: dashboardStats.redeemedPhysical,
+              poolDigital: digitalPool.count || 0,
+              poolPhysical: physicalPool.count || 0
+          });
           
           if (!isPolling) setError(null);
 
@@ -114,22 +124,23 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
           .map(([date, count]) => ({ date, count }))
           .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
-        const claimedDigital = vouchers.filter(v => v.type === 'DIGITAL').length;
-        const redeemedPhysical = vouchers.filter(v => v.type === 'PHYSICAL').length;
-    
+        // GUNAKAN serverStats UNTUK TOTAL AGAR AKURAT
         setStats({
-          totalClaims: vouchers.length,
+          totalClaims: vouchers.length, // Total yang terload di tabel
           totalRedeemed: vouchers.filter(v => v.isRedeemed).length,
           claimsToday: vouchers.filter(v => v.claimDate.startsWith(today)).length,
           claimsByOutlet,
           claimsPerDay,
-          totalDigitalVouchers: poolStats.digitalTotal, 
-          claimedDigitalVouchers: claimedDigital,
-          totalPhysicalVouchers: poolStats.physicalTotal,
-          redeemedPhysicalVouchers: redeemedPhysical,
+          
+          // Data Statistik Utama dari Server Count
+          totalDigitalVouchers: serverStats.poolDigital, 
+          claimedDigitalVouchers: serverStats.claimedDigital, // Pakai data server
+          
+          totalPhysicalVouchers: serverStats.poolPhysical,
+          redeemedPhysicalVouchers: serverStats.redeemedPhysical, // Pakai data server
         });
     }
-  }, [vouchers, loading, poolStats]);
+  }, [vouchers, loading, serverStats]);
 
 
   const loadCodes = async (codes: string[], type: VoucherType, discountAmount?: number) => {
@@ -187,6 +198,12 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
         const mappedVoucher = mapDbToVoucher(result);
         setVouchers(prev => [mappedVoucher, ...prev]);
         
+        // Update serverStats lokal sementara agar UI responsif
+        setServerStats(prev => ({
+            ...prev,
+            claimedDigital: prev.claimedDigital + 1
+        }));
+        
         return mappedVoucher;
 
     } catch (err: any) {
@@ -201,6 +218,13 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
         const result = await api.redeemVoucher(voucherIdentifier, redeemedOutlet);
         const mapped = mapDbToVoucher(result);
         setVouchers(prev => prev.map(v => v.id === mapped.id ? mapped : v));
+        
+        // Update serverStats lokal
+        setServerStats(prev => ({
+            ...prev,
+            redeemedDigital: prev.redeemedDigital + 1
+        }));
+
         return mapped;
     } catch (err: any) {
         setError(err.message);
@@ -221,6 +245,13 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
         const result = await api.recordPhysical(payload);
         const mapped = mapDbToVoucher(result);
         setVouchers(prev => [mapped, ...prev]);
+        
+        // Update serverStats lokal
+        setServerStats(prev => ({
+            ...prev,
+            redeemedPhysical: prev.redeemedPhysical + 1
+        }));
+
         return mapped;
 
       } catch (err: any) {

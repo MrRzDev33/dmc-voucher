@@ -1,4 +1,3 @@
-
 import React, { useState, useRef } from 'react';
 import { useVouchers } from '../context/VoucherContext';
 import { Outlet, Voucher } from '../types';
@@ -9,9 +8,7 @@ import Button from '../components/Button';
 import Input from '../components/Input';
 import SearchableSelect from '../components/SearchableSelect';
 import { Loader2, CalendarClock } from '../components/icons/Icons';
-// Import html2canvas dynamically
-const html2canvas = import('html2canvas');
-
+import html2canvas from 'html2canvas';
 
 const ClaimPage: React.FC = () => {
   const [fullName, setFullName] = useState('');
@@ -71,14 +68,11 @@ const ClaimPage: React.FC = () => {
   };
 
   const handleDownload = async () => {
-    const canvasModule = await html2canvas;
-    const h2c = canvasModule.default;
-
     if (voucherRef.current) {
       // Kita gunakan opsi 'onclone' untuk memanipulasi elemen sebelum di-screenshot.
       // Ini penting agar saat download di HP (layar kecil), hasil gambar tetap lebar (seperti di desktop)
       // dan teks tidak terpotong atau turun berantakan.
-      const canvas = await h2c(voucherRef.current, { 
+      const canvas = await html2canvas(voucherRef.current, { 
           scale: 3, // Resolusi tinggi
           backgroundColor: null,
           onclone: (clonedDoc) => {
@@ -132,7 +126,7 @@ const ClaimPage: React.FC = () => {
 
   return (
     <div className="container mx-auto px-4 py-8 sm:px-6 lg:px-8 max-w-2xl">
-      <div className="bg-white p-8 rounded-xl shadow-lg">
+      <div className="bg-white p-8 rounded-xl shadow-lg border border-gray-100">
         <h1 className="text-3xl font-bold text-center text-primary mb-2">Klaim Voucher 12.12!</h1>
         <p className="text-center text-gray-600 mb-8">Isi data diri sobat di bawah ini untuk mendapatkan voucher eksklusif dari kami.</p>
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -174,13 +168,13 @@ const ClaimPage: React.FC = () => {
             placeholder="Cari outlet..."
           />
           
-          {formError && <p className="text-red-500 text-sm">{formError}</p>}
-          {error && <p className="text-red-500 text-sm">{error.includes("limit") ? 'Maaf, batas klaim harian telah tercapai.' : error}</p>}
+          {formError && <p className="text-red-500 text-sm bg-red-50 p-3 rounded-md border border-red-200">{formError}</p>}
+          {error && <p className="text-red-500 text-sm bg-red-50 p-3 rounded-md border border-red-200">{error.includes("limit") ? 'Maaf, batas klaim harian telah tercapai.' : error}</p>}
           
           <Button 
             type="submit" 
             disabled={isSubmitting || isBlocked} 
-            className="w-full notranslate" 
+            className="w-full notranslate py-3 text-lg shadow-md hover:shadow-lg transition-all" 
             translate="no"
           >
             {isSubmitting ? <><Loader2 className="animate-spin mr-2" /> Memproses...</> : 'Klaim Voucher Saya'}
@@ -197,13 +191,19 @@ const ClaimPage: React.FC = () => {
         >
             <p className="text-center text-gray-600 mb-4">Selamat! Ini adalah voucher Anda. Silakan unduh dan tunjukkan kepada kasir di outlet.</p>
             {/* Voucher Card Container */}
-            <div className="flex justify-center w-full">
+            <div className="flex justify-center w-full mb-6">
                 <VoucherCard ref={voucherRef} voucher={generatedVoucher} />
             </div>
-            <div className="mt-6 flex justify-center">
-                <Button onClick={handleDownload}>
+            <div className="flex flex-col gap-3">
+                <Button onClick={handleDownload} className="w-full">
                     Unduh Voucher (PNG)
                 </Button>
+                 <button 
+                    onClick={() => setGeneratedVoucher(null)} 
+                    className="text-gray-500 text-sm hover:text-gray-700 underline"
+                >
+                    Tutup
+                </button>
             </div>
         </Modal>
       )}
@@ -223,9 +223,12 @@ const ClaimPage: React.FC = () => {
              <p className="text-gray-700 font-medium text-lg mb-2">
                 Peringatan Keamanan
              </p>
-             <p className="text-gray-600">
+             <p className="text-gray-600 mb-4">
                 Kamu sudah mencoba klaim dengan nomor yang sama sebanyak tiga kali. Silahkan ubah dengan nomor yang berbeda atau kamu tidak akan bisa klaim lagi.
              </p>
+             <Button onClick={() => setShowBlockModal(false)} variant="secondary" className="w-full">
+                 Saya Mengerti
+             </Button>
          </div>
       </Modal>
 

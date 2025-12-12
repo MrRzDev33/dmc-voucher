@@ -1,4 +1,3 @@
-
 import React, { useState, useRef, useEffect } from 'react';
 import ClaimPage from './pages/ClaimPage';
 import AdminPage from './pages/AdminPage';
@@ -36,7 +35,7 @@ const App: React.FC = () => {
   return (
     <AuthProvider>
       <VoucherProvider>
-        <div className="min-h-screen bg-gray-50 text-gray-800">
+        <div className="min-h-screen bg-gray-50 text-gray-800 flex flex-col">
           <header className="bg-white shadow-md sticky top-0 z-20">
             <nav className="container mx-auto px-4 sm:px-6 lg:px-8">
               <div className="flex items-center justify-between h-16">
@@ -79,7 +78,7 @@ const App: React.FC = () => {
                   </button>
                   
                   {isMenuOpen && (
-                    <div className="absolute top-16 right-4 mt-2 w-48 bg-white rounded-md shadow-lg py-1 ring-1 ring-black ring-opacity-5">
+                    <div className="absolute top-16 right-4 mt-2 w-48 bg-white rounded-md shadow-lg py-1 ring-1 ring-black ring-opacity-5 z-50">
                       <button
                         onClick={() => handleNavClick('claim')}
                         className={`block w-full text-left px-4 py-2 text-sm ${
@@ -103,7 +102,7 @@ const App: React.FC = () => {
             </nav>
           </header>
 
-          <main>
+          <main className="flex-grow">
             {currentPage === 'claim' && <ClaimPage />}
             {currentPage === 'admin' && <AdminPage />}
           </main>

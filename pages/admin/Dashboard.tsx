@@ -10,7 +10,7 @@ import SearchableSelect from '../../components/SearchableSelect';
 import UploadCodes from '../../components/UploadCodes';
 import TabButton from '../../components/TabButton';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
-import { Download, Users, TicketCheck, CalendarClock, Ticket, Smartphone, Warehouse, SlidersHorizontal, Save } from '../../components/icons/Icons';
+import { Download, Users, TicketCheck, CalendarClock, Ticket, Smartphone, Warehouse, SlidersHorizontal, Save, Loader2 } from '../../components/icons/Icons';
 
 const VOUCHERS_PER_PAGE = 10;
 
@@ -20,6 +20,7 @@ const Dashboard: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const [activeTab, setActiveTab] = useState<VoucherType>('DIGITAL');
   const [isToggling, setIsToggling] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
   
   // State untuk input limit harian
   const [limitInput, setLimitInput] = useState<string>('1000');
@@ -43,8 +44,26 @@ const Dashboard: React.FC = () => {
 
   const totalPages = Math.ceil(filteredVouchers.length / VOUCHERS_PER_PAGE);
 
-  const handleExport = () => {
-    exportToCSV(filteredVouchers, `${activeTab.toLowerCase()}-vouchers-${filterOutlet}-${new Date().toISOString().split('T')[0]}`);
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+        // Karena `vouchers` sekarang dijamin lengkap oleh logic pagination di api.ts,
+        // kita bisa langsung export dari `filteredVouchers` yang ada di state.
+        // Jika filter outlet 'all', maka semua data ter-download.
+        const dataToExport = filteredVouchers;
+        
+        if (dataToExport.length === 0) {
+            alert("Tidak ada data untuk diekspor.");
+            return;
+        }
+
+        exportToCSV(dataToExport, `${activeTab.toLowerCase()}-vouchers-${filterOutlet === 'all' ? 'AllOutlets' : filterOutlet}-${new Date().toISOString().split('T')[0]}`);
+    } catch (e) {
+        console.error("Export failed", e);
+        alert("Gagal melakukan ekspor data.");
+    } finally {
+        setIsExporting(false);
+    }
   };
 
   const handleToggleStatus = async () => {
@@ -64,7 +83,12 @@ const Dashboard: React.FC = () => {
       setIsUpdatingLimit(false);
   }
 
-  if (loading) return <div className="text-center p-10">Memuat data dasbor...</div>;
+  if (loading) return (
+      <div className="flex flex-col items-center justify-center min-h-[50vh] space-y-4">
+          <Loader2 className="animate-spin text-primary" size={48} />
+          <p className="text-gray-500">Memuat semua data voucher, mohon tunggu...</p>
+      </div>
+  );
 
   return (
     <div className="space-y-8">
@@ -184,9 +208,9 @@ const Dashboard: React.FC = () => {
                     placeholder="Filter berdasarkan outlet"
                 />
              </div>
-            <Button onClick={handleExport} variant="secondary">
-              <Download size={18} className="mr-2" />
-              Ekspor CSV
+            <Button onClick={handleExport} variant="secondary" disabled={isExporting}>
+              {isExporting ? <Loader2 className="animate-spin mr-2" /> : <Download size={18} className="mr-2" />}
+              {isExporting ? 'Mengekspor...' : 'Ekspor CSV'}
             </Button>
           </div>
         </div>

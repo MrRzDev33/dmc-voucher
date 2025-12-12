@@ -1,4 +1,3 @@
-
 import { Voucher, VoucherType, User } from '../types';
 import { supabase } from './supabaseClient';
 import mockApi from './mockdb';
@@ -103,14 +102,41 @@ const supabaseApi = {
     async getVouchers(): Promise<any[]> {
         if (!supabase) return mockApi.getVouchers();
         
-        try {
-            const { data, error } = await supabase
-                .from('vouchers')
-                .select('*')
-                .order('claim_date', { ascending: false });
+        // PERBAIKAN: Menggunakan Loop Pagination untuk memastikan SEMUA data terambil
+        // Supabase memiliki limit default 1000 row per request.
+        let allVouchers: any[] = [];
+        const pageSize = 1000;
+        let from = 0;
+        let more = true;
 
-            if (error) throw error;
-            return data || [];
+        try {
+            while (more) {
+                const { data, error } = await supabase
+                    .from('vouchers')
+                    .select('*')
+                    .order('claim_date', { ascending: false })
+                    .range(from, from + pageSize - 1);
+
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+                    allVouchers = [...allVouchers, ...data];
+                    
+                    // Jika data yang diterima kurang dari pageSize, berarti ini halaman terakhir
+                    if (data.length < pageSize) {
+                        more = false;
+                    } else {
+                        from += pageSize;
+                    }
+                } else {
+                    more = false;
+                }
+                
+                // Safety break untuk mencegah infinite loop jika data sangat besar
+                if (from > 50000) more = false; 
+            }
+            
+            return allVouchers;
         } catch (err: any) {
             console.warn("Get vouchers failed, using mock fallback.", err);
             return mockApi.getVouchers();
@@ -134,13 +160,32 @@ const supabaseApi = {
         }
     },
 
+    async getDashboardStats(): Promise<{ claimedDigital: number, redeemedDigital: number, redeemedPhysical: number }> {
+        if (!supabase) return mockApi.getDashboardStats();
+        
+        try {
+            const [claimedDig, redeemedDig, redeemedPhys] = await Promise.all([
+                supabase.from('vouchers').select('*', { count: 'exact', head: true }).eq('type', 'DIGITAL'),
+                supabase.from('vouchers').select('*', { count: 'exact', head: true }).eq('type', 'DIGITAL').eq('is_redeemed', true),
+                supabase.from('vouchers').select('*', { count: 'exact', head: true }).eq('type', 'PHYSICAL').eq('is_redeemed', true)
+            ]);
+
+            return {
+                claimedDigital: claimedDig.count || 0,
+                redeemedDigital: redeemedDig.count || 0,
+                redeemedPhysical: redeemedPhys.count || 0
+            };
+        } catch (err) {
+            console.error("Error getting dashboard stats", err);
+            // Return 0 if fails, UI will show 0 or loading
+            return { claimedDigital: 0, redeemedDigital: 0, redeemedPhysical: 0 };
+        }
+    },
+
     async claimVoucher(data: any): Promise<Voucher> {
         if (!supabase) return mockApi.claimVoucher(data);
 
-        // 0. CEK LIMIT HARIAN (Fitur Baru)
-        // Gunakan try/catch terpisah agar kegagalan cek limit tidak memblokir klaim (fail-open) jika diinginkan,
-        // ATAU agar bisa fallback ke mock jika DB mati total.
-        
+        // 0. CEK LIMIT HARIAN
         let dailyLimit = 1000;
         try {
             const { data: limitData } = await supabase
@@ -256,19 +301,31 @@ const supabaseApi = {
         if (!supabase) return mockApi.redeemVoucher(identifier, outlet);
 
         try {
-            const { data: voucher, error: fetchError } = await supabase
+            // PERBAIKAN: Ambil semua yang cocok, jangan pakai maybeSingle.
+            // Ini untuk menangani kasus jika ada data duplikat atau history lama.
+            const { data: candidates, error: fetchError } = await supabase
                 .from('vouchers')
                 .select('*')
                 .or(`voucher_code.eq.${identifier},whatsapp_number.eq.${identifier}`)
-                .eq('type', 'DIGITAL')
-                .maybeSingle();
+                .eq('type', 'DIGITAL');
 
-            if (fetchError || !voucher) {
-                throw new Error("Voucher tidak ditemukan.");
+            if (fetchError) throw fetchError;
+            
+            if (!candidates || candidates.length === 0) {
+                throw new Error("Voucher tidak ditemukan. Pastikan kode atau nomor WhatsApp benar.");
             }
 
-            if (voucher.is_redeemed) {
-                throw new Error("Voucher ini sudah ditukarkan sebelumnya.");
+            // Cari voucher yang BELUM diredeem
+            let targetVoucher = candidates.find(v => !v.is_redeemed);
+
+            // Jika semua sudah diredeem, ambil yang pertama untuk menampilkan pesan error yang informatif
+            if (!targetVoucher) {
+                 targetVoucher = candidates[0];
+                 if (targetVoucher.is_redeemed) {
+                     const tgl = targetVoucher.redeemed_date ? new Date(targetVoucher.redeemed_date).toLocaleDateString('id-ID') : '-';
+                     const out = targetVoucher.redeemed_outlet || '-';
+                     throw new Error(`Voucher atas nama ${targetVoucher.full_name} sudah ditukarkan pada ${tgl} di ${out}.`);
+                 }
             }
 
             const { data: updatedVoucher, error: updateError } = await supabase
@@ -278,7 +335,7 @@ const supabaseApi = {
                     redeemed_date: new Date().toISOString(),
                     redeemed_outlet: outlet
                 })
-                .eq('id', voucher.id)
+                .eq('id', targetVoucher.id) // Update spesifik ID
                 .select()
                 .single();
 
