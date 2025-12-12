@@ -56,7 +56,7 @@ const supabaseApi = {
         if (!supabase) return { setting_value: 'true' };
         
         try {
-            // PERBAIKAN: Menggunakan nama kolom 'setting_key' dan 'setting_value' sesuai screenshot
+            // Menggunakan nama kolom 'setting_key' dan 'setting_value' sesuai database
             const { data, error } = await supabase
                 .from('app_settings')
                 .select('setting_value')
@@ -83,21 +83,42 @@ const supabaseApi = {
         if (!supabase) return mockApi.updateSetting(key, value);
         
         try {
-            // PERBAIKAN: Menggunakan 'setting_key' dan 'setting_value'
-            // Menggunakan UPSERT agar lebih aman (Insert jika baru, Update jika ada)
-            const { error } = await supabase
+            // 1. Cek apakah setting sudah ada (Select terlebih dahulu)
+            const { data: existing, error: checkError } = await supabase
                 .from('app_settings')
-                .upsert(
-                    { setting_key: key, setting_value: value },
-                    { onConflict: 'setting_key' }
-                );
+                .select('setting_key')
+                .eq('setting_key', key)
+                .maybeSingle();
 
-            if (error) throw error;
+            if (checkError) throw checkError;
+
+            let operationError;
+
+            if (existing) {
+                // 2. Jika ada, lakukan UPDATE
+                console.log(`Updating setting ${key} to ${value}...`);
+                const { error } = await supabase
+                    .from('app_settings')
+                    .update({ setting_value: value })
+                    .eq('setting_key', key);
+                operationError = error;
+            } else {
+                // 3. Jika tidak ada, lakukan INSERT
+                console.log(`Inserting setting ${key} to ${value}...`);
+                const { error } = await supabase
+                    .from('app_settings')
+                    .insert({ setting_key: key, setting_value: value });
+                operationError = error;
+            }
+
+            if (operationError) throw operationError;
+            
             return { success: true };
 
         } catch (err: any) {
             console.error("Update setting failed:", err);
-            throw new Error("Gagal menyimpan pengaturan ke Database. Pastikan nama kolom 'setting_key' & 'setting_value' benar.");
+            // Kembalikan pesan error asli dari database agar user tahu penyebabnya (misal: RLS Policy)
+            throw new Error(err.message || "Gagal update database.");
         }
     },
 
