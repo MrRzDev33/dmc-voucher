@@ -2,7 +2,6 @@
 import React from 'react';
 
 // Using lucide-react icons as examples, converted to functional components
-// In a real project, you'd install `lucide-react`
 type IconProps = React.SVGProps<SVGSVGElement> & { size?: number };
 
 export const Loader2: React.FC<IconProps> = ({ size = 24, className, ...props }) => (

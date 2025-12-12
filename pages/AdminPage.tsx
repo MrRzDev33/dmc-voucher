@@ -38,16 +38,6 @@ const AdminPage: React.FC = () => {
             </p>
           </div>
 
-          {/* Info Box untuk Kredensial Mock */}
-          <div className="bg-blue-50 border-l-4 border-blue-500 p-4 text-sm text-blue-700">
-            <p className="font-bold mb-1">Demo Mode (Mock Data)</p>
-            <p className="mb-2">Gunakan akun berikut untuk login:</p>
-            <ul className="list-disc list-inside space-y-1 ml-1">
-                <li>Admin: <strong>admin</strong> / <strong>admin123</strong></li>
-                <li>Kasir: <strong>kasir</strong> / <strong>kasir123</strong></li>
-            </ul>
-          </div>
-
           <form className="mt-8 space-y-6" onSubmit={handleLogin}>
              <div className="space-y-4">
                 <Input

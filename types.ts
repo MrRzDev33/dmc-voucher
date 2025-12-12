@@ -39,6 +39,7 @@ export interface Stats {
     claimsByOutlet: { [key: string]: number };
     claimsPerDay: { date: string; count: number }[];
     
+    // Field baru untuk statistik akurat dari server
     totalDigitalVouchers: number;
     claimedDigitalVouchers: number;
     totalPhysicalVouchers: number;
@@ -50,10 +51,15 @@ export interface UseVoucherStoreReturn {
   loading: boolean;
   error: string | null;
   stats: Stats;
-  isClaimEnabled: boolean; // Status Global ON/OFF
-  dailyLimit: number; // Limit Harian Dinamis
+  
+  // Field baru yang menyebabkan error di Dashboard Anda jika tidak ada
+  isClaimEnabled: boolean; 
+  dailyLimit: number; 
+  
+  // Fungsi baru
   toggleClaimStatus: (status: boolean) => Promise<void>; 
-  updateDailyLimit: (limit: number) => Promise<void>; // Fungsi update limit
+  updateDailyLimit: (limit: number) => Promise<void>; 
+  
   claimVoucher: (data: Omit<Voucher, 'id' | 'voucherCode' | 'claimDate' | 'isRedeemed' | 'type' | 'redeemedDate' | 'redeemedOutlet' | 'discountAmount'>) => Promise<Voucher>;
   redeemVoucher: (voucherIdentifier: string, redeemedOutlet: Outlet) => Promise<Voucher>;
   recordPhysicalVoucher: (data: Omit<Voucher, 'id' | 'claimDate' | 'isRedeemed' | 'type' | 'redeemedDate' | 'redeemedOutlet' | 'discountAmount'>) => Promise<Voucher>;

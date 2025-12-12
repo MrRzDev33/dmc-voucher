@@ -27,12 +27,32 @@ const delay = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
 const mockApi = {
     async login(username: string, password: string): Promise<User | null> {
         await delay(500);
-        if (username === 'admin' && password === 'admin123') {
-            return { id: '1', username: 'admin', role: Role.PUSAT };
+        
+        const GLOBAL_PASS = 'supportbydomach705';
+
+        // Admin Pusat
+        if (username === 'adminpusat' && password === GLOBAL_PASS) {
+            return { id: '1', username: 'adminpusat', role: Role.PUSAT };
         }
-        if (username === 'kasir' && password === 'kasir123') {
-            return { id: '2', username: 'kasir', role: Role.KASIR, outlet: 'Bandung - DMC Pusat Cihanjuang' };
+
+        // Akun Kasir (1, 2, 3)
+        const validKasirs = ['kasir1', 'kasir2', 'kasir3'];
+        if (validKasirs.includes(username) && password === GLOBAL_PASS) {
+            // Kita set outlet default berbeda untuk simulasi, atau bisa disamakan
+            let outletName = 'Bandung - DMC Pusat Cihanjuang';
+            
+            // Contoh simulasi outlet berbeda tiap user (opsional)
+            if (username === 'kasir2') outletName = 'Jakarta Selatan - DMC Jagakarsa';
+            if (username === 'kasir3') outletName = 'Surabaya - DMC Surabaya';
+
+            return { 
+                id: username, // use username as ID
+                username: username, 
+                role: Role.KASIR, 
+                outlet: outletName 
+            };
         }
+
         return null;
     },
 

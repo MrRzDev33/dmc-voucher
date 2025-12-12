@@ -7,8 +7,10 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
   const [vouchers, setVouchers] = useState<Voucher[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // State baru untuk Dashboard
   const [isClaimEnabled, setIsClaimEnabled] = useState<boolean>(true); 
-  const [dailyLimit, setDailyLimit] = useState<number>(1000); // Default local sebelum fetch
+  const [dailyLimit, setDailyLimit] = useState<number>(1000);
   
   // State untuk menyimpan statistik REAL dari server (bukan dari array vouchers)
   const [serverStats, setServerStats] = useState({
@@ -68,12 +70,10 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
           const mappedVouchers = (voucherData || []).map(mapDbToVoucher);
           setVouchers(mappedVouchers);
 
-          // 4. Ambil Statistik Dashboard (Count Exact) - BARU
-          // Ini memastikan angka di dashboard akurat walau tabel belum meload semua data
+          // 4. Ambil Statistik Dashboard (Count Exact) - PENTING AGAR DATA TIDAK BERKURANG
           const dashboardStats = await api.getDashboardStats();
 
           // 5. Ambil Statistik Pool (Stock)
-          // Polling juga update ini agar jika ada upload stock baru, langsung muncul
           const digitalPool = await api.getPoolStats('DIGITAL');
           const physicalPool = await api.getPoolStats('PHYSICAL');
               
@@ -89,7 +89,6 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
 
       } catch (err: any) {
           console.error("Error fetching data:", err);
-          // Show the actual error message from API (e.g., Connection Failed)
           if (!isPolling) setError(err.message || "Gagal memuat data dari server.");
       } finally {
           if (!isPolling) setLoading(false);
@@ -98,13 +97,10 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
 
   useEffect(() => {
     fetchData();
-    
-    // Polling Mechanism (Pengganti Realtime Supabase)
-    // Cek data setiap 5 detik agar admin/kasir dapat update terbaru
+    // Polling setiap 10 detik
     const intervalId = setInterval(() => {
         fetchData(true);
-    }, 5000);
-
+    }, 10000);
     return () => clearInterval(intervalId);
   }, [fetchData]);
 
@@ -124,20 +120,19 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
           .map(([date, count]) => ({ date, count }))
           .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
     
-        // GUNAKAN serverStats UNTUK TOTAL AGAR AKURAT
         setStats({
-          totalClaims: vouchers.length, // Total yang terload di tabel
+          totalClaims: vouchers.length,
           totalRedeemed: vouchers.filter(v => v.isRedeemed).length,
           claimsToday: vouchers.filter(v => v.claimDate.startsWith(today)).length,
           claimsByOutlet,
           claimsPerDay,
           
-          // Data Statistik Utama dari Server Count
+          // Data Statistik Utama dari Server Count (Fix issue data berkurang)
           totalDigitalVouchers: serverStats.poolDigital, 
-          claimedDigitalVouchers: serverStats.claimedDigital, // Pakai data server
+          claimedDigitalVouchers: serverStats.claimedDigital, 
           
           totalPhysicalVouchers: serverStats.poolPhysical,
-          redeemedPhysicalVouchers: serverStats.redeemedPhysical, // Pakai data server
+          redeemedPhysicalVouchers: serverStats.redeemedPhysical, 
         });
     }
   }, [vouchers, loading, serverStats]);
@@ -151,17 +146,24 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
         fetchData(); 
     } catch (err: any) {
         console.error("Upload error:", err);
-        setError(`Gagal mengunggah kode: ${err.message}`);
+        alert(`Gagal mengunggah kode: ${err.message}`);
     }
   }
 
   const toggleClaimStatus = async (status: boolean) => {
       try {
+          // Kirim ke API
           await api.updateSetting('claim_enabled', String(status));
+          
+          // Jika sukses, update state lokal
           setIsClaimEnabled(status);
+          
+          // Reload data untuk memastikan sinkron
+          setTimeout(() => fetchData(true), 500);
       } catch (err: any) {
           console.error("Gagal mengubah status klaim:", err);
-          alert("Gagal mengubah status klaim.");
+          alert(`Gagal menyimpan status ke database: ${err.message}. Pastikan koneksi lancar.`);
+          // Jangan ubah state lokal jika gagal
       }
   }
 
@@ -170,9 +172,10 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
           await api.updateSetting('daily_limit', String(limit));
           setDailyLimit(limit);
           alert(`Batas harian berhasil diubah menjadi ${limit}`);
+          setTimeout(() => fetchData(true), 500);
       } catch (err: any) {
           console.error("Gagal mengubah limit:", err);
-          alert("Gagal mengubah limit harian.");
+          alert("Gagal mengubah limit harian: " + err.message);
       }
   }
 
@@ -193,12 +196,9 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
         };
 
         const result = await api.claimVoucher(payload);
-        
-        // Map result dari API ke format Voucher App
         const mappedVoucher = mapDbToVoucher(result);
         setVouchers(prev => [mappedVoucher, ...prev]);
         
-        // Update serverStats lokal sementara agar UI responsif
         setServerStats(prev => ({
             ...prev,
             claimedDigital: prev.claimedDigital + 1
@@ -219,7 +219,6 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
         const mapped = mapDbToVoucher(result);
         setVouchers(prev => prev.map(v => v.id === mapped.id ? mapped : v));
         
-        // Update serverStats lokal
         setServerStats(prev => ({
             ...prev,
             redeemedDigital: prev.redeemedDigital + 1
@@ -246,7 +245,6 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
         const mapped = mapDbToVoucher(result);
         setVouchers(prev => [mapped, ...prev]);
         
-        // Update serverStats lokal
         setServerStats(prev => ({
             ...prev,
             redeemedPhysical: prev.redeemedPhysical + 1
@@ -268,6 +266,7 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
             fetchData();
         } catch (e: any) {
             console.error("Failed to reset:", e);
+            alert("Gagal reset data: " + e.message);
         }
     }
   };
