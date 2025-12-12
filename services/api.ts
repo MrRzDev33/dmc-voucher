@@ -165,12 +165,14 @@ const supabaseApi = {
     async getPoolStats(type: VoucherType): Promise<{ count: number }> {
         if (!supabase) return mockApi.getPoolStats(type);
         try {
+            // PERBAIKAN: Menghapus filter .eq('is_used', false)
+            // Tujuannya agar Dashboard menampilkan TOTAL KAPASITAS VOUCHER (Total Pool),
+            // bukan hanya sisa stok. Ini memperbaiki tampilan "0" jika user mengharapkan total.
             const { count, error } = await supabase
                 .from('voucher_pool')
-                // Pastikan hanya menghitung yang BELUM terpakai (available stock)
                 .select('*', { count: 'exact', head: true })
-                .eq('type', type)
-                .eq('is_used', false); 
+                .eq('type', type);
+                
             if (error) throw error;
             return { count: count || 0 };
         } catch (error) {
@@ -230,8 +232,6 @@ const supabaseApi = {
             if (countError) throw countError;
 
             // PENTING: Jika klaim hari ini SUDAH SAMA DENGAN atau LEBIH dari limit, tolak.
-            // Contoh: Limit 952. Jika count sudah 952, user ke-953 akan ditolak.
-            // Jika count 951, user ke-952 akan lolos.
             if (typeof claimsToday === 'number' && claimsToday >= dailyLimit) {
                 throw new Error(`Mohon maaf, kuota voucher harian (${dailyLimit}) untuk hari ini sudah habis.`);
             }
@@ -258,7 +258,7 @@ const supabaseApi = {
             const { data: codeData, error: poolError } = await supabase
                 .from('voucher_pool')
                 .select('*')
-                .eq('is_used', false) // Hanya ambil yang belum terpakai
+                .eq('is_used', false) // Hanya ambil yang belum terpakai (Available)
                 .eq('type', 'DIGITAL')
                 .limit(1)
                 .maybeSingle();
@@ -278,13 +278,10 @@ const supabaseApi = {
                 
                 if (updatePoolError) {
                     console.error("Gagal update status pool", updatePoolError);
-                    // Lanjutkan saja, optimis concurrency atau throw error tergantung preferensi
-                    // Disini kita throw untuk keamanan agar kode tidak double claim
                     throw new Error("Terjadi kesalahan saat mengambil kode voucher. Silakan coba lagi.");
                 }
             } else {
                 // !!! KRUSIAL: JANGAN MEMBUAT KODE BARU JIKA STOK HABIS !!!
-                // Hapus fungsi generateVoucherCode() di sini.
                 throw new Error("Mohon maaf, stok voucher Digital saat ini sudah habis.");
             }
 
@@ -319,7 +316,6 @@ const supabaseApi = {
 
         } catch (err: any) {
             // HANYA fallback ke mock jika benar-benar mati koneksi internetnya (Network Error)
-            // Error bisnis logic (Stok habis, Limit habis) tidak boleh masuk ke mock.
             if (err.message === 'Failed to fetch' || err.message === 'NetworkError') {
                 console.warn("Network Error, entering offline mode (MOCK)");
                 return mockApi.claimVoucher(data);
