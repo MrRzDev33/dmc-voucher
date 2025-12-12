@@ -180,21 +180,35 @@ const supabaseApi = {
         }
     },
 
-    async getDashboardStats(): Promise<{ claimedDigital: number, redeemedDigital: number, redeemedPhysical: number }> {
+    async getDashboardStats(): Promise<{ claimedDigital: number, redeemedDigital: number, redeemedPhysical: number, todayClaimedDigital: number }> {
         if (!supabase) return mockApi.getDashboardStats();
         try {
-            const [claimedDig, redeemedDig, redeemedPhys] = await Promise.all([
+            const todayStr = new Date().toISOString().split('T')[0];
+
+            const [claimedDig, redeemedDig, redeemedPhys, todayDig] = await Promise.all([
+                // Total Digital All Time
                 supabase.from('vouchers').select('*', { count: 'exact', head: true }).eq('type', 'DIGITAL'),
+                // Total Redeemed Digital
                 supabase.from('vouchers').select('*', { count: 'exact', head: true }).eq('type', 'DIGITAL').eq('is_redeemed', true),
-                supabase.from('vouchers').select('*', { count: 'exact', head: true }).eq('type', 'PHYSICAL').eq('is_redeemed', true)
+                // Total Redeemed Physical
+                supabase.from('vouchers').select('*', { count: 'exact', head: true }).eq('type', 'PHYSICAL').eq('is_redeemed', true),
+                
+                // BARU: Total Digital HARI INI (Strict untuk Limit)
+                supabase.from('vouchers')
+                    .select('*', { count: 'exact', head: true })
+                    .eq('type', 'DIGITAL')
+                    .gte('claim_date', `${todayStr}T00:00:00`)
+                    .lte('claim_date', `${todayStr}T23:59:59`)
             ]);
+
             return {
                 claimedDigital: claimedDig.count || 0,
                 redeemedDigital: redeemedDig.count || 0,
-                redeemedPhysical: redeemedPhys.count || 0
+                redeemedPhysical: redeemedPhys.count || 0,
+                todayClaimedDigital: todayDig.count || 0
             };
         } catch (err) {
-            return { claimedDigital: 0, redeemedDigital: 0, redeemedPhysical: 0 };
+            return { claimedDigital: 0, redeemedDigital: 0, redeemedPhysical: 0, todayClaimedDigital: 0 };
         }
     },
 
@@ -227,7 +241,7 @@ const supabaseApi = {
                 .select('*', { count: 'exact', head: true })
                 .gte('claim_date', `${todayStr}T00:00:00`)
                 .lte('claim_date', `${todayStr}T23:59:59`)
-                .eq('type', 'DIGITAL'); 
+                .eq('type', 'DIGITAL'); // Pastikan hanya DIGITAL
 
             if (countError) throw countError;
 
@@ -368,6 +382,21 @@ const supabaseApi = {
     async recordPhysical(data: any): Promise<Voucher> {
         if (!supabase) return mockApi.recordPhysical(data);
         try {
+            // 1. CEK APAKAH KODE FISIK SUDAH ADA?
+            const { data: existing, error: checkError } = await supabase
+                .from('vouchers')
+                .select('id')
+                .eq('voucher_code', data.voucher_code)
+                .maybeSingle();
+
+            if (checkError) throw checkError;
+            
+            // Jika sudah ada, tolak input
+            if (existing) {
+                throw new Error(`Gagal: Kode voucher fisik '${data.voucher_code}' sudah tercatat/digunakan sebelumnya.`);
+            }
+
+            // 2. JIKA BELUM, LANJUT INSERT
             const { data: newVoucher, error } = await supabase
                 .from('vouchers')
                 .insert({

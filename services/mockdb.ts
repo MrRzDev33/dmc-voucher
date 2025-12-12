@@ -77,12 +77,20 @@ const mockApi = {
         return { count: 50 }; // Dummy stock
     },
 
-    async getDashboardStats(): Promise<{ claimedDigital: number, redeemedDigital: number, redeemedPhysical: number }> {
+    async getDashboardStats(): Promise<{ claimedDigital: number, redeemedDigital: number, redeemedPhysical: number, todayClaimedDigital: number }> {
         await delay(300);
+        const todayStr = new Date().toISOString().split('T')[0];
+        
         const claimedDigital = MOCK_VOUCHERS.filter(v => v.type === 'DIGITAL').length;
         const redeemedDigital = MOCK_VOUCHERS.filter(v => v.type === 'DIGITAL' && v.is_redeemed).length;
         const redeemedPhysical = MOCK_VOUCHERS.filter(v => v.type === 'PHYSICAL' && v.is_redeemed).length;
-        return { claimedDigital, redeemedDigital, redeemedPhysical };
+        
+        const todayClaimedDigital = MOCK_VOUCHERS.filter(v => 
+            v.type === 'DIGITAL' && 
+            v.claim_date.startsWith(todayStr)
+        ).length;
+
+        return { claimedDigital, redeemedDigital, redeemedPhysical, todayClaimedDigital };
     },
 
     async claimVoucher(data: any): Promise<Voucher> {
@@ -127,6 +135,13 @@ const mockApi = {
 
     async recordPhysical(data: any): Promise<Voucher> {
         await delay(500);
+        
+        // CEK DUPLIKASI KODE
+        const existing = MOCK_VOUCHERS.find(v => v.voucher_code === data.voucher_code);
+        if (existing) {
+             throw new Error(`Gagal: Kode voucher fisik '${data.voucher_code}' sudah tercatat/digunakan sebelumnya.`);
+        }
+
         const newVoucher = {
             id: Date.now(),
             gender: data.gender,

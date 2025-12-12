@@ -17,6 +17,7 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
     claimedDigital: 0,
     redeemedDigital: 0,
     redeemedPhysical: 0,
+    todayClaimedDigital: 0, // NEW: Specific for limit check
     poolDigital: 0,
     poolPhysical: 0
   });
@@ -31,6 +32,7 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
       claimedDigitalVouchers: 0,
       totalPhysicalVouchers: 0,
       redeemedPhysicalVouchers: 0,
+      todayClaimedDigital: 0, // NEW
   });
 
   const mapDbToVoucher = (data: any): Voucher => ({
@@ -71,6 +73,7 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
           setVouchers(mappedVouchers);
 
           // 4. Ambil Statistik Dashboard (Count Exact) - PENTING AGAR DATA TIDAK BERKURANG
+          // Mengembalikan { claimedDigital, redeemedDigital, redeemedPhysical, todayClaimedDigital }
           const dashboardStats = await api.getDashboardStats();
 
           // 5. Ambil Statistik Pool (Stock)
@@ -81,6 +84,7 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
               claimedDigital: dashboardStats.claimedDigital,
               redeemedDigital: dashboardStats.redeemedDigital,
               redeemedPhysical: dashboardStats.redeemedPhysical,
+              todayClaimedDigital: dashboardStats.todayClaimedDigital || 0, // Store specific metric
               poolDigital: digitalPool.count || 0,
               poolPhysical: physicalPool.count || 0
           });
@@ -133,6 +137,9 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
           
           totalPhysicalVouchers: serverStats.poolPhysical,
           redeemedPhysicalVouchers: serverStats.redeemedPhysical, 
+          
+          // Use specific server statistic for the daily limit
+          todayClaimedDigital: serverStats.todayClaimedDigital
         });
     }
   }, [vouchers, loading, serverStats]);
@@ -199,9 +206,11 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
         const mappedVoucher = mapDbToVoucher(result);
         setVouchers(prev => [mappedVoucher, ...prev]);
         
+        // Optimistic Update
         setServerStats(prev => ({
             ...prev,
-            claimedDigital: prev.claimedDigital + 1
+            claimedDigital: prev.claimedDigital + 1,
+            todayClaimedDigital: prev.todayClaimedDigital + 1
         }));
         
         return mappedVoucher;

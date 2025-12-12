@@ -44,6 +44,9 @@ export interface Stats {
     claimedDigitalVouchers: number;
     totalPhysicalVouchers: number;
     redeemedPhysicalVouchers: number;
+    
+    // Field KHUSUS untuk limit harian (Hanya Digital Hari Ini)
+    todayClaimedDigital: number;
 }
 
 export interface UseVoucherStoreReturn {

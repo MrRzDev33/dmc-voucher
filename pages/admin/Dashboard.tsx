@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useEffect } from 'react';
 import { useVouchers } from '../../context/VoucherContext';
 import { Outlet, Voucher, VoucherType } from '../../types';
@@ -122,7 +121,7 @@ const Dashboard: React.FC = () => {
             {/* Setting: Limit Harian */}
             <div className="flex items-center gap-2 bg-gray-50 px-4 py-2 rounded-lg border border-gray-200 w-full sm:w-auto">
                  <div className="flex flex-col flex-grow">
-                    <span className="text-xs text-gray-500">Batas Harian (Saat ini: {stats.claimsToday})</span>
+                    <span className="text-xs text-gray-500">Batas Harian (Saat ini: {stats.todayClaimedDigital})</span>
                     <div className="flex items-center gap-2">
                         <input 
                             type="number" 
@@ -156,7 +155,10 @@ const Dashboard: React.FC = () => {
             <>
                 <StatCard title="Voucher Digital Diklaim" value={`${stats.claimedDigitalVouchers} / ${stats.totalDigitalVouchers}`} icon={<Users />} />
                 <StatCard title="Sudah Ditukar" value={vouchers.filter(v => v.type === 'DIGITAL' && v.isRedeemed).length} icon={<TicketCheck />} />
-                <StatCard title="Klaim Hari Ini / Batas" value={`${stats.claimsToday} / ${dailyLimit}`} icon={<CalendarClock />} />
+                
+                {/* PERBAIKAN: Menggunakan stats.todayClaimedDigital (Murni Digital) agar sesuai dengan logika Limit */}
+                <StatCard title="Klaim Hari Ini / Batas" value={`${stats.todayClaimedDigital} / ${dailyLimit}`} icon={<CalendarClock />} />
+                
                 <StatCard title="Estimasi Reimbursement" value={`Rp ${(vouchers.filter(v=>v.type==='DIGITAL' && v.isRedeemed).reduce((sum, v) => sum + (v.discountAmount || 10000), 0)).toLocaleString('id-ID')}`} icon={<span className="font-bold">Rp</span>} />
             </>
         ) : (
