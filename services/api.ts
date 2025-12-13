@@ -1,7 +1,6 @@
 import { Voucher, VoucherType, User } from '../types';
 import { supabase } from './supabaseClient';
 import mockApi from './mockdb';
-import { generateVoucherCode } from './util';
 
 // ============================================================================
 // KONFIGURASI KONEKSI DATABASE
@@ -43,8 +42,7 @@ const supabaseApi = {
             return null;
 
         } catch (err: any) {
-            console.error("Database Login Error:", err);
-            // Jangan fallback ke mock untuk login agar keamanan terjaga
+            console.error("Database Login Error:", err.message || err);
             return null;
         }
     },
@@ -69,8 +67,8 @@ const supabaseApi = {
             if (!data) return { setting_value: defaultValue };
             
             return { setting_value: data.value };
-        } catch (e) {
-            console.warn(`Error fetching setting ${key}`, e);
+        } catch (e: any) {
+            console.warn(`Error fetching setting ${key}:`, e.message || e);
             return { setting_value: key === 'daily_limit' ? '1000' : 'true' };
         }
     },
@@ -146,8 +144,7 @@ const supabaseApi = {
             }
             return allVouchers;
         } catch (err: any) {
-            console.error("CRITICAL: Failed to fetch vouchers from Supabase.", err);
-            // HAPUS FALLBACK KE MOCK. Biarkan error muncul agar user sadar koneksi bermasalah.
+            console.error("CRITICAL: Failed to fetch vouchers:", err.message || err);
             throw new Error("Gagal mengambil data dari Database. Periksa koneksi internet Anda.");
         }
     },
@@ -158,13 +155,14 @@ const supabaseApi = {
             const { count, error } = await supabase
                 .from('voucher_pool')
                 .select('*', { count: 'exact', head: true })
-                .eq('type', type);
+                .eq('type', type)
+                .eq('is_used', false); // Hanya hitung yang belum terpakai
                 
             if (error) throw error;
             return { count: count || 0 };
-        } catch (error) {
-            console.error("Error getting pool stats:", error);
-            // Return 0 is safer than mock data here
+        } catch (error: any) {
+            // FIX: Log error message properly so it's not [object Object]
+            console.error("Error getting pool stats:", error.message || JSON.stringify(error));
             return { count: 0 };
         }
     },
@@ -191,9 +189,8 @@ const supabaseApi = {
                 redeemedPhysical: redeemedPhys.count || 0,
                 todayClaimedDigital: todayDig.count || 0
             };
-        } catch (err) {
-            console.error("Error fetching dashboard stats:", err);
-            // Jangan return object kosong/nol jika error, lempar error agar UI menampilkan status loading/gagal
+        } catch (err: any) {
+            console.error("Error fetching dashboard stats:", err.message || err);
             throw new Error("Gagal memuat statistik dashboard.");
         }
     },
@@ -241,22 +238,28 @@ const supabaseApi = {
             if (dupError) throw dupError;
             if (existing) throw new Error("Nomor WhatsApp ini sudah pernah mengklaim voucher.");
 
-            // 4. AMBIL KODE DARI POOL
+            // 4. AMBIL KODE DARI POOL (STRICT MODE: Must come from DB)
             let voucherCode = '';
             let discount = 10000;
             let poolId = null;
 
+            // FIFO: Ambil ID terkecil yang belum dipakai
             const { data: codeData, error: poolError } = await supabase
                 .from('voucher_pool')
                 .select('*')
                 .eq('is_used', false)
                 .eq('type', 'DIGITAL')
+                .order('id', { ascending: true }) 
                 .limit(1)
                 .maybeSingle();
 
-            if (poolError) throw poolError;
+            if (poolError) {
+                console.error("Pool fetch error:", poolError);
+                throw poolError;
+            }
 
             if (codeData) {
+                console.log("Mengambil kode dari database:", codeData.code);
                 voucherCode = codeData.code;
                 discount = codeData.discount_amount;
                 poolId = codeData.id;
@@ -266,9 +269,9 @@ const supabaseApi = {
                     .update({ is_used: true })
                     .eq('id', poolId);
                 
-                if (updatePoolError) throw new Error("Gagal mengupdate pool.");
+                if (updatePoolError) throw new Error("Gagal mengupdate status voucher pool.");
             } else {
-                throw new Error("Mohon maaf, stok voucher Digital saat ini sudah habis.");
+                throw new Error("Mohon maaf, stok voucher Digital saat ini sudah habis. Silakan hubungi admin untuk restock.");
             }
 
             // 5. INSERT DATA
@@ -289,6 +292,7 @@ const supabaseApi = {
                 .single();
 
             if (insertError) {
+                // Rollback status pool jika insert gagal
                 if (poolId) await supabase.from('voucher_pool').update({ is_used: false }).eq('id', poolId);
                 throw insertError;
             }
@@ -296,6 +300,7 @@ const supabaseApi = {
             return newVoucher;
 
         } catch (err: any) {
+            console.error("Claim failed:", err);
             throw new Error(err.message || "Gagal klaim voucher.");
         }
     },
@@ -378,31 +383,51 @@ const supabaseApi = {
         }
     },
 
-    async uploadCodes(codes: string[], type: VoucherType, discountAmount?: number): Promise<{ success: boolean, count: number }> {
+    async uploadCodes(codes: string[], type: VoucherType, discountAmount?: number): Promise<{ success: boolean, count: number, skipped: number }> {
         if (!supabase) return mockApi.uploadCodes(codes, type, discountAmount);
         try {
-            const rows = codes.map(code => ({
-                code: code.trim(),
+            // 1. Bersihkan duplikat di dalam file input itu sendiri
+            const uniqueInputCodes = Array.from(new Set(codes.map(c => c.trim()))).filter(c => c);
+            
+            const rows = uniqueInputCodes.map(code => ({
+                code: code,
                 type,
                 discount_amount: discountAmount || 10000,
                 is_used: false
             }));
-            const { error } = await supabase.from('voucher_pool').insert(rows);
+
+            // 2. Gunakan UPSERT dengan ignoreDuplicates: true
+            const { data, error } = await supabase
+                .from('voucher_pool')
+                .upsert(rows, { onConflict: 'code', ignoreDuplicates: true })
+                .select(); 
+
             if (error) throw error;
-            return { success: true, count: codes.length };
+
+            const insertedCount = data ? data.length : 0;
+            const skippedCount = uniqueInputCodes.length - insertedCount;
+
+            return { success: true, count: insertedCount, skipped: skippedCount };
         } catch (err: any) {
-            throw new Error("Gagal upload ke Database: " + err.message);
+            throw new Error("Gagal upload ke Database: " + (err.message || JSON.stringify(err)));
         }
     },
 
     async resetData(): Promise<{ success: boolean }> {
         if (!supabase) return mockApi.resetData();
         try {
-            await supabase.from('vouchers').delete().neq('id', 0);
-            await supabase.from('voucher_pool').update({ is_used: false }).neq('id', 0);
+            // 1. Hapus transaksi voucher (klaim user)
+            const { error: err1 } = await supabase.from('vouchers').delete().neq('id', 0);
+            if (err1) throw err1;
+            
+            // 2. HAPUS SEMUA POOL VOUCHER (PENTING: Agar kode lama/acak hilang bersih)
+            const { error: err2 } = await supabase.from('voucher_pool').delete().neq('id', 0);
+            if (err2) throw err2;
+            
             return { success: true };
-        } catch (err) {
-             throw err;
+        } catch (err: any) {
+             console.error("Reset failed:", err);
+             throw new Error(err.message || "Gagal mereset data.");
         }
     }
 };

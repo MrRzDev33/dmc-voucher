@@ -147,7 +147,13 @@ export const useVoucherStore = (): UseVoucherStoreReturn => {
     setError(null);
     try {
         const result = await api.uploadCodes(codes, type, discountAmount);
-        alert(`${result.count} kode untuk voucher ${type === 'DIGITAL' ? 'Digital' : 'Fisik'} berhasil diunggah!`);
+        
+        let message = `Proses selesai! ${result.count} kode berhasil masuk.`;
+        if (result.skipped && result.skipped > 0) {
+            message += `\n${result.skipped} kode dilewati karena DUPLIKAT (sudah ada di database).`;
+        }
+        
+        alert(message);
         fetchData(); 
     } catch (err: any) {
         console.error("Upload error:", err);

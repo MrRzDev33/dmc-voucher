@@ -45,7 +45,7 @@ export const OUTLETS: Outlet[] = [
 'Bogor - DMC Lawang Gintung',
 'Bogor - DMC Metland Transyiogi Cileungsi',
 'Bogor - DMC Parung Panjang',
-'Bogor - DMC Ruang Iqra Ciapus',
+'Bogor - DMC Ciapus',
 'Bogor - DMC Semplak Bogor',
 'Bogor - DMC Tajur',
 'Bogor - DMC Vila Bogor Indah',

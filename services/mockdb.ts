@@ -158,9 +158,9 @@ const mockApi = {
         return newVoucher as unknown as Voucher;
     },
 
-    async uploadCodes(codes: string[], type: VoucherType, discountAmount?: number): Promise<{ success: boolean, count: number }> {
+    async uploadCodes(codes: string[], type: VoucherType, discountAmount?: number): Promise<{ success: boolean, count: number, skipped: number }> {
         await delay(500);
-        return { success: true, count: codes.length };
+        return { success: true, count: codes.length, skipped: 0 };
     },
 
     async resetData(): Promise<{ success: boolean }> {
